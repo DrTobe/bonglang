@@ -1,8 +1,9 @@
 import ast
 
 class Eval:
-    def __init__(self):
+    def __init__(self, printfunc=print):
         self.variables = {}
+        self.printfunc = printfunc
 
     def evaluate(self, program):
         if isinstance(program, ast.BinOp):
@@ -53,6 +54,6 @@ class Eval:
         elif isinstance(program, ast.Variable):
             return self.variables[program.name]
         elif isinstance(program, ast.Print):
-            print(self.evaluate(program.expr))
+            self.printfunc(self.evaluate(program.expr))
         elif isinstance(program, ast.Let):
             self.variables[program.name] = self.evaluate(program.expr)
