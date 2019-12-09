@@ -3,6 +3,11 @@ import lexer
 from token_def import *
 
 class TestLexer(unittest.TestCase):
+    def test_bong(self):
+        sourcecode = "|"
+        expectedTypes = [BONG]
+        test_token_types(self, sourcecode, expectedTypes)
+
     def test_arithmetic_operators(self):
         sourcecode = "+ - * / % ^"
         expectedTypes = [OP_ADD, OP_SUB, OP_MULT, OP_DIV, OP_MOD, OP_POW]
