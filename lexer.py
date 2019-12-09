@@ -5,6 +5,7 @@ class Lexer:
     def __init__(self, code):
         self.code = code
         self.current_pos = 0
+
     def get_token(self):
         c = self.next()
         while c!="" and is_whitespace(c):
@@ -74,12 +75,15 @@ class Lexer:
             return Token(token.IDENTIFIER, lex)
         else:
             return Token(token.ERR, "unrecognized character ("+c+")")
+
     def peek(self):
         return self.code[self.current_pos] if self.current_pos < len(self.code) else ""
+
     def next(self):
         c = self.peek()
         self.current_pos += 1
         return c
+
     def match(self, compare):
         c = self.peek()
         if c == compare:
@@ -89,7 +93,9 @@ class Lexer:
 
 def is_number(arg):
     return arg >= "0" and arg <= "9"
+
 def is_alpha(arg):
     return (arg >= "a" and arg <= "z") or (arg >= "A" and arg <= "Z")
+
 def is_whitespace(arg):
     return arg == " " or arg == "\t" or arg == "\n"

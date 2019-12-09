@@ -3,7 +3,7 @@
 import token_def as token
 from lexer import Lexer
 from parser import Parser
-from evaluator import Evaluator
+from evaluator import Eval
 
 def run(code):
     l = Lexer(code)

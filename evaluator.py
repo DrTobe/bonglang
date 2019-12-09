@@ -3,6 +3,7 @@ import ast
 class Eval:
     def __init__(self):
         self.variables = {}
+
     def evaluate(self, program):
         if isinstance(program, ast.BinOp):
             lhs = self.evaluate(program.lhs)
