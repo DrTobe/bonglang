@@ -9,7 +9,10 @@ class TestData():
 
 class TestParser(unittest.TestCase):
     def test_print(self):
-        testData = [TestData("print 1 + 2", "print (1+2);")]
+        testData = [
+                TestData("print 1 + 2", "print (1+2);"),
+                TestData("print 13 + 37 == 42", "print ((13+37)==42);")
+                ]
         test_strings(self, testData)
 
 def test_strings(test_class, testData):
