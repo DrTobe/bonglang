@@ -6,35 +6,36 @@ class Eval:
 
     def evaluate(self, program):
         if isinstance(program, ast.BinOp):
+            op = program.op
             lhs = self.evaluate(program.lhs)
             rhs = self.evaluate(program.rhs)
-            if program.op == "+":
+            if op == "+":
                 return lhs + rhs
-            elif program.op == "-":
+            if op == "-":
                 return lhs - rhs
-            if program.op == "*":
+            if op == "*":
                 return lhs * rhs
-            if program.op == "/":
+            if op == "/":
                 return lhs // rhs
-            if program.op == "%":
+            if op == "%":
                 return lhs % rhs
-            if program.op == "^":
+            if op == "^":
                 return lhs ** rhs
-            if program.op == "&&":
+            if op == "&&":
                 return lhs and rhs
-            if program.op == "||":
+            if op == "||":
                 return lhs or rhs
-            if program.op == "==":
+            if op == "==":
                 return lhs == rhs
-            if program.op == "!=":
+            if op == "!=":
                 return lhs != rhs
-            if program.op == "<":
+            if op == "<":
                 return lhs < rhs
-            if program.op == ">":
+            if op == ">":
                 return lhs > rhs
-            if program.op == "<=":
+            if op == "<=":
                 return lhs <= rhs
-            if program.op == ">=":
+            if op == ">=":
                 return lhs >= rhs
             else:
                 raise Exception("unrecognised operator: " + str(program.op))
