@@ -10,6 +10,11 @@ class Eval:
         self.printfunc = printfunc
 
     def evaluate(self, program):
+        if isinstance(program, ast.Program):
+            result = None
+            for stmt in program.stmts:
+                result = self.evaluate(stmt)
+            return result
         if isinstance(program, ast.BinOp):
             op = program.op
             lhs = self.evaluate(program.lhs)

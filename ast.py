@@ -1,5 +1,14 @@
 import token_def as token
 
+class Program:
+    def __init__(self, stmts):
+        self.stmts = stmts
+    def __str__(self):
+        result = []
+        for stmt in self.stmts:
+            result.append(str(stmt))
+        return "\n".join(result) + "\n"
+
 class BinOp:
     def __init__(self, lhs, op, rhs):
         self.lhs = lhs

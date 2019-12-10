@@ -7,6 +7,14 @@ class Parser:
         self.init_token_access()
 
     def compile(self):
+        statements = []
+        while self.peek().type != token.EOF:
+            statements.append(self.stmt())
+        if len(statements) == 1:
+            return statements[0]
+        return ast.Program(statements)
+
+    def stmt(self):
         if self.peek().type == token.PRINT:
             return self.print_stmt()
         if self.peek().type == token.LET:
