@@ -4,14 +4,16 @@ import ast
 class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
-        self.current_token = lexer.get_token()
-        self.matched_token = None
+        self.init_token_access()
 
     def compile(self):
         if self.peek().type == token.PRINT:
             return self.print_stmt()
         if self.peek().type == token.LET:
             return self.let_stmt()
+        if self.peek().type == token.IDENTIFIER: # here, everything can happen
+            if self.peek(1).type == token.ASSIGN:
+                self.assignment() # TODO
         if self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN:
             return self.expression()
         if not self.match(token.EOF):
@@ -22,7 +24,7 @@ class Parser:
             raise Exception("expected print statement")
         if not self.match(token.IDENTIFIER):
             raise Exception("FUCK")
-        name = self.prev().lexeme
+        name = self.peek(-1).lexeme
         if not self.match(token.ASSIGN):
             raise Exception("FUCK2")
         expr = self.expression()
@@ -33,6 +35,9 @@ class Parser:
             raise(Exception("expected print statement"))
         res = ast.Print(self.expression())
         return res
+
+    def assignment(self):
+        raise(Exception("assignments not implemented yet"))
 
     def expression(self):
         return self.parse_or()
@@ -57,7 +62,7 @@ class Parser:
     def compare(self):
         lhs = self.addition()
         while self.match([token.OP_EQ, token.OP_NEQ, token.OP_GT, token.OP_GE, token.OP_LT, token.OP_LE]):
-            prev = self.prev()
+            prev = self.peek(-1)
             rhs = self.addition()
             if prev.type == token.OP_EQ:
                 op = "=="
@@ -79,7 +84,7 @@ class Parser:
     def addition(self):
         lhs = self.multiplication()
         while self.match([token.OP_ADD, token.OP_SUB]):
-            prev = self.prev()
+            prev = self.peek(-1)
             rhs = self.multiplication()
             if prev.type == token.OP_ADD:
                 op = "+"
@@ -93,7 +98,7 @@ class Parser:
     def multiplication(self):
         lhs = self.signed()
         while self.match([token.OP_MULT, token.OP_DIV, token.OP_MOD]):
-            prev = self.prev()
+            prev = self.peek(-1)
             rhs = self.signed()
             if prev.type == token.OP_MULT:
                 op = "*"
@@ -122,11 +127,11 @@ class Parser:
 
     def primary(self):
         if self.match(token.INT_VALUE):
-            return ast.Integer(int(self.prev().lexeme))
+            return ast.Integer(int(self.peek(-1).lexeme))
         if self.match(token.BOOL_VALUE):
-            return ast.Bool(True if self.prev().lexeme=="true" else False)
+            return ast.Bool(True if self.peek(-1).lexeme=="true" else False)
         if self.match(token.IDENTIFIER):
-            return ast.Variable(self.prev().lexeme)
+            return ast.Variable(self.peek(-1).lexeme)
         if self.match(token.LPAREN):
             exp = self.expression()
             if not self.match(token.RPAREN):
@@ -134,16 +139,35 @@ class Parser:
             return exp
         raise Exception("integer or () expected")
 
-    def peek(self):
-        return self.current_token
+    # 
+    # Token access methods
+    # This is implemented with a list of tokens for the future / look ahead
+    # and a list for the past / looking back
+    #
+    BACK = 3
+    AHEAD = 5
 
-    def prev(self):
-        return self.matched_token
+    def init_token_access(self):
+        self.past_tokens = [token.EOF] * Parser.BACK
+        self.next_tokens = []
+        for i in range(Parser.AHEAD):
+            self.next_tokens.append(self.lexer.get_token())
+
+    def peek(self, steps=0):
+        if steps >= 0:
+            if steps >= Parser.AHEAD:
+                raise(Exception("Looking ahead too far!"))
+            return self.next_tokens[steps]
+        else:
+            steps = -1*steps - 1
+            if steps >= Parser.BACK:
+                raise(Exception("Looking back too far!"))
+            return self.past_tokens[steps]
 
     def next(self):
-        t = self.current_token
-        self.matched_token = self.current_token
-        self.current_token = self.lexer.get_token()
+        t = self.peek()
+        self.past_tokens = [self.next_tokens[0]] + self.past_tokens[:-1]
+        self.next_tokens = self.next_tokens[1:] + [self.lexer.get_token()]
         return t
 
     def match(self, compare):
