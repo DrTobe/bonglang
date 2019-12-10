@@ -17,6 +17,10 @@ class TestParser(unittest.TestCase):
 
     def test_expression_statement(self):
         testData = [
+                TestData("1", "1"),
+                TestData("-1", "(-1)"),
+                TestData("true", "true"),
+                TestData("!false", "(!false)"),
                 TestData("1 + 2", "(1+2)"),
                 TestData("1 + 2 + 3", "((1+2)+3)"),
                 TestData("1 - 2 - 3", "((1-2)-3)"),
