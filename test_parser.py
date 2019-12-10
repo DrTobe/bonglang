@@ -15,6 +15,19 @@ class TestParser(unittest.TestCase):
                 ]
         test_strings(self, testData)
 
+    def test_expression_statement(self):
+        testData = [
+                TestData("1 + 2", "(1+2)"),
+                TestData("1 + 2 + 3", "((1+2)+3)"),
+                TestData("1 - 2 - 3", "((1-2)-3)"),
+                TestData("1 + 2 * 3", "(1+(2*3))"),
+                TestData("4 * 2 + 3", "((4*2)+3)"),
+                TestData("1 + 2 ^ 3", "(1+(2^3))"),
+                TestData("1 ^ 2 ^ 3", "(1^(2^3))"),
+                TestData("true || false && 1 < 2 + 3 * 3 ^ 5" , "(true||(false&&(1<(2+(3*(3^5))))))"),
+                ]
+        test_strings(self, testData)
+
 def test_strings(test_class, testData):
     for td in testData:
         test_string(test_class, td.sourcecode, td.expectedStr)

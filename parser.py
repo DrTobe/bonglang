@@ -12,6 +12,8 @@ class Parser:
             return self.print_stmt()
         if self.peek().type == token.LET:
             return self.let_stmt()
+        if self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN:
+            return self.expression()
         if not self.match(token.EOF):
             raise(Exception("unparsed tokens left: " + str(self.peek())))
 
