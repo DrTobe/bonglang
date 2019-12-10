@@ -1,5 +1,9 @@
 import ast
 
+# For subprocesses
+import os
+import subprocess
+
 class Eval:
     def __init__(self, printfunc=print):
         self.variables = {}
@@ -51,9 +55,22 @@ class Eval:
             return program.value
         elif isinstance(program, ast.Bool):
             return program.value
-        elif isinstance(program, ast.Variable):
-            return self.variables[program.name]
+        elif isinstance(program, ast.Variable):     # for identifiers, ...
+            if program.name in self.variables:      # ... try variables first
+                return self.variables[program.name]
+            else:                                   # ... external call then
+                return self.callprogram(program)
         elif isinstance(program, ast.Print):
             self.printfunc(self.evaluate(program.expr))
         elif isinstance(program, ast.Let):
             self.variables[program.name] = self.evaluate(program.expr)
+
+    def callprogram(self, program):
+        path_var = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/local/sbin"]
+        for path in path_var:
+            filepath = path+"/"+program.name
+            if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
+                compl = subprocess.run(program.name)
+                return compl.returncode
+        print("bong: {}: command not found".format(program.name))
+

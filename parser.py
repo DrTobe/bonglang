@@ -14,7 +14,7 @@ class Parser:
         if self.peek().type == token.IDENTIFIER: # here, everything can happen
             if self.peek(1).type == token.ASSIGN:
                 self.assignment() # TODO
-        if self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
+        if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression()
         if not self.match(token.EOF):
             raise(Exception("unparsed tokens left: " + str(self.peek())))
