@@ -37,6 +37,8 @@ class TestEvaluator(unittest.TestCase):
                 "(1+2)^(1+2)", 27,
                 "27%5", 2,
                 "(27%5)^2", 4,
+                "-2 * 3", -6,
+                "!true", False,
                 ]
         for i in range(0, len(tests), 2):
             statement = tests[i]
