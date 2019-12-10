@@ -10,8 +10,30 @@ class Lexer:
         c = self.next()
         while c!="" and is_whitespace(c):
             c = self.next()
-        if c == "":
+        if c == "": # EOF
             return Token(token.EOF)
+        """
+        if is_newline(c): # newlines
+            while self.peek()!="" and is_newline(self.peek()):
+                self.next()
+            return Token(token.EOL)
+        """
+        if c == "/": # comments
+            if self.match("/"): # single-line comment starts
+                while self.peek()!="" and not is_newline(self.peek()):
+                    self.next() # remove everything until newline is found
+                while self.peek()!="" and is_newline(self.peek()):
+                    self.next() # for \r\n and \n\r, remove all newline chars
+                return self.get_token()
+            if self.match("*"): # multi-line comment
+                commentlevel = 1
+                while commentlevel > 0 and self.peek()!="":
+                    c = self.next()
+                    if c == "/" and self.match("*"):
+                        commentlevel += 1
+                    elif c == "*" and self.match("/"):
+                        commentlevel -= 1
+                return self.get_token()
         if c == "+":
             return Token(token.OP_ADD)
         if c == "-":
@@ -98,4 +120,7 @@ def is_alpha(arg):
     return (arg >= "a" and arg <= "z") or (arg >= "A" and arg <= "Z")
 
 def is_whitespace(arg):
-    return arg == " " or arg == "\t" or arg == "\n"
+    return arg == " " or arg == "\t" or arg == "\n" or arg == "\r"
+
+def is_newline(arg):
+    return arg == "\r" or arg == "\n"

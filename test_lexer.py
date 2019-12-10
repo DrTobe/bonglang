@@ -8,6 +8,33 @@ class TestLexer(unittest.TestCase):
         expectedTypes = [BONG]
         test_token_types(self, sourcecode, expectedTypes)
 
+    def test_singleline_comments(self):
+        sourcecode = "print + // Hello World */ 2"
+        expectedTypes = [PRINT, OP_ADD]
+        test_token_types(self, sourcecode, expectedTypes)
+        sourcecode = "// This is a comment that starts at the begi ..."
+        expectedTypes = []
+        test_token_types(self, sourcecode, expectedTypes)
+
+    def test_multiline_comments(self):
+        sourcecode = "print + /* Here, we have \n specified a multiline ...*/"
+        expectedTypes = [PRINT, OP_ADD]
+        test_token_types(self, sourcecode, expectedTypes)
+        sourcecode = "*/ + + /* btw, what happens when we start with */ //?"
+        expectedTypes = [OP_MULT, OP_DIV, OP_ADD, OP_ADD]
+        test_token_types(self, sourcecode, expectedTypes)
+        sourcecode = "    +    /* can we let a comment unclosed?"
+        expectedTypes = [OP_ADD]
+        test_token_types(self, sourcecode, expectedTypes)
+
+    def test_nested_comments(self):
+        sourcecode = "print /* we want /* to have */ two prints */ print"
+        expectedTypes = [PRINT, PRINT]
+        test_token_types(self, sourcecode, expectedTypes)
+        sourcecode = "  ^  /* check for special soeren's bug :) **/   ^^  "
+        expectedTypes = [OP_POW, OP_POW, OP_POW]
+        test_token_types(self, sourcecode, expectedTypes)
+
     def test_arithmetic_operators(self):
         sourcecode = "+ - * / % ^"
         expectedTypes = [OP_ADD, OP_SUB, OP_MULT, OP_DIV, OP_MOD, OP_POW]
@@ -77,7 +104,7 @@ def test_token_types(test_class, sourcecode, expectedTypes):
         test_class.assertEqual(t, tok.type, "expected " + str(t) + " token,  but got: " + str(tok))
 
     eof_token = l.get_token()
-    test_class.assertIsInstance(eof_token, Token, "expected result to be of type token_def.Token, but got " + str(type(tok)))
+    test_class.assertIsInstance(eof_token, Token, "expected result to be of type token_def.Token, but got " + str(type(eof_token)))
     test_class.assertEqual(eof_token.type, EOF, "expected EOF token, but got: " + str(eof_token))
 
 def test_lexemes(test_class, sourcecode, expectedValues):
