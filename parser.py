@@ -23,6 +23,8 @@ class Parser:
             return self.let_stmt()
         if self.peek().type == token.IF:
             return self.if_stmt()
+        if self.peek().type == token.WHILE:
+            return self.while_stmt()
         if self.peek().type == token.LBRACE:
             return self.block_stmt()
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
@@ -60,6 +62,13 @@ class Parser:
             else:
                 e = self.block_stmt()
         return ast.IfElseStatement(cond, t, e)
+
+    def while_stmt(self):
+        if not self.match(token.WHILE):
+            raise(Exception("expected while"))
+        cond = self.expression()
+        t = self.block_stmt()
+        return ast.WhileStatement(cond, t)
 
     def print_stmt(self):
         if not self.match(token.PRINT):

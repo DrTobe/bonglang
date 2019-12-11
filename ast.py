@@ -71,6 +71,13 @@ class IfElseStatement:
             result += str(self.e)
         return result
 
+class WhileStatement:
+    def __init__(self, cond, t):
+        self.cond = cond
+        self.t = t
+    def __str__(self):
+        return "while {} {}".format(str(self.cond), str(self.t))
+
 class SysCall:
     def __init__(self, name, args):
         self.name = name

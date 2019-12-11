@@ -25,6 +25,11 @@ class Eval:
             elif node.e != None:
                 return self.evaluate(node.e)
             return None
+        if isinstance(node, ast.WhileStatement):
+            ret = None
+            while self.evaluate(node.cond):
+                ret = self.evaluate(node.t)
+            return ret
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":

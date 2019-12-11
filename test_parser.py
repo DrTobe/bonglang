@@ -25,6 +25,13 @@ class TestParser(unittest.TestCase):
                 ]
         test_strings(self, testData)
 
+    def test_while(self):
+        testData = [
+                "while 3 { 1337 }", "{\nwhile 3 {\n1337\n}\n}",
+                "let x = 0 while x > 0 { print x }", "{\nlet x = 0\nwhile (x>0) {\nprint x;\n}\n}",
+                ]
+        test_strings_list(self, testData)
+
     def test_print(self):
         testData = [
                 TestData("print 1 + 2", "{\nprint (1+2);\n}"),
@@ -64,6 +71,12 @@ let c = 31415
 def test_strings(test_class, testData):
     for td in testData:
         test_string(test_class, td.sourcecode, td.expectedStr)
+
+def test_strings_list(test_class, test_data):
+    for i in range(0,len(test_data),2):
+        source = test_data[i]
+        expected = test_data[i+1]
+        test_string(test_class, source, expected)
 
 def test_string(test_class, sourcecode, expectedStr):
     program = translate(sourcecode)
