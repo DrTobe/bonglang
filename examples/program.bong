@@ -1,0 +1,3 @@
+let a = 1337
+let b = 42
+print a + b
