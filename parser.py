@@ -1,10 +1,12 @@
 import token_def as token
 import ast
+import symbol_table
 
 class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
         self.init_token_access()
+        self.symbol_table = symbol_table.SymbolTable()
 
     def compile(self):
         statements = []
@@ -12,20 +14,21 @@ class Parser:
             statements.append(self.stmt())
         if len(statements) == 1:
             return statements[0]
-        return ast.Program(statements)
+        return ast.Block(statements, self.symbol_table)
 
     def stmt(self):
         if self.peek().type == token.PRINT:
             return self.print_stmt()
         if self.peek().type == token.LET:
             return self.let_stmt()
+        if self.peek().type == token.LBRACE:
+            return self.block_stmt()
         if self.peek().type == token.IDENTIFIER: # here, everything can happen
             if self.peek(1).type == token.ASSIGN:
                 self.assignment() # TODO
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression()
-        if not self.match(token.EOF):
-            raise(Exception("unparsed tokens left: " + str(self.peek())))
+        raise(Exception("unknown statement found"))
 
     def let_stmt(self):
         if not self.match(token.LET):
@@ -33,6 +36,8 @@ class Parser:
         if not self.match(token.IDENTIFIER):
             raise Exception("FUCK")
         name = self.peek(-1).lexeme
+        # TODO optional: check if already registered
+        self.symbol_table.register(name)
         if not self.match(token.ASSIGN):
             raise Exception("FUCK2")
         expr = self.expression()
@@ -43,6 +48,21 @@ class Parser:
             raise(Exception("expected print statement"))
         res = ast.Print(self.expression())
         return res
+
+    def block_stmt(self):
+        if not self.match(token.LBRACE):
+            raise(Exception("expected { for block statement"))
+        # TODO create new scope
+        block_symbol_table = symbol_table.SymbolTable(self.symbol_table)
+        self.symbol_table = block_symbol_table
+        statements = []
+        while self.peek().type != token.RBRACE:
+            statements.append(self.stmt())
+        if not self.match(token.RBRACE):
+            raise(Exception("missing } for block statement"))
+        # TODO delete scope
+        self.symbol_table = self.symbol_table.parent
+        return ast.Block(statements, block_symbol_table)
 
     def assignment(self):
         raise(Exception("assignments not implemented yet"))

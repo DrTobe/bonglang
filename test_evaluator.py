@@ -16,6 +16,16 @@ class TestEvaluator(unittest.TestCase):
             expected = tests[i+1]
             test_eval(statement, expected, self)
 
+    def test_shadowing(self):
+        tests = [
+                "let a = 5 { let a = 10 { a } }", 10,
+                "let a = 5 { let a = 10 } a", 5,
+                ]
+        for i in range(0, len(tests), 2):
+            statement = tests[i]
+            expected = tests[i+1]
+            test_eval(statement, expected, self)
+
     def test_print_arith(self):
         tests = [
                 "print 2 + 4 - 2", 4,

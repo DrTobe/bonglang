@@ -50,6 +50,14 @@ class Lexer:
             return Token(token.LPAREN)
         if c == ")":
             return Token(token.RPAREN)
+        if c == "{":
+            return Token(token.LBRACE)
+        if c == "}":
+            return Token(token.RBRACE)
+        if c == "[":
+            return Token(token.LBRACKET)
+        if c == "]":
+            return Token(token.RBRACKET)
         if c == "=":
             if self.match("="):
                 return Token(token.OP_EQ)
