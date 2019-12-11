@@ -37,6 +37,19 @@ class TestParser(unittest.TestCase):
                 TestData("1 + 2 ^ 3", "{\n(1+(2^3))\n}\n"),
                 TestData("1 ^ 2 ^ 3", "{\n(1^(2^3))\n}\n"),
                 TestData("true || false && 1 < 2 + 3 * 3 ^ 5" , "{\n(true||(false&&(1<(2+(3*(3^5))))))\n}\n"),
+                TestData("let a = 1337\n a = 42", "{\nlet a = 1337\n(a=42)\n}\n"),
+                TestData("""
+let a = 1337
+let b = 42
+let c = 31415
+a = b = c = 15
+    """, """{
+let a = 1337
+let b = 42
+let c = 31415
+(a=(b=(c=15)))
+}
+"""),
                 ]
         test_strings(self, testData)
 

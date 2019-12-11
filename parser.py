@@ -23,9 +23,6 @@ class Parser:
             return self.let_stmt()
         if self.peek().type == token.LBRACE:
             return self.block_stmt()
-        if self.peek().type == token.IDENTIFIER: # here, everything can happen
-            if self.peek(1).type == token.ASSIGN:
-                self.assignment() # TODO implement assignment
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression_stmt()
         raise(Exception("unknown statement found"))
@@ -71,11 +68,15 @@ class Parser:
         self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
-    def assignment(self):
-        raise(Exception("assignments not implemented yet"))
-
     def expression(self):
-        return self.parse_or()
+        return self.assignment()
+
+    def assignment(self):
+        lhs = self.parse_or()
+        if self.match(token.ASSIGN):
+            rhs = self.assignment()
+            lhs = ast.BinOp(lhs, "=", rhs)
+        return lhs
 
     def parse_or(self):
         lhs = self.parse_and()

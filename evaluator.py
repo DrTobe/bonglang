@@ -20,6 +20,13 @@ class Eval:
             return result
         if isinstance(node, ast.BinOp):
             op = node.op
+            if op == "=":
+                if not isinstance(node.lhs, ast.Variable):
+                    raise Exception("Fucker")
+                name = node.lhs.name
+                value = self.evaluate(node.rhs)
+                self.variables.get(name).value = value
+                return value
             lhs = self.evaluate(node.lhs)
             rhs = self.evaluate(node.rhs)
             if op == "+":

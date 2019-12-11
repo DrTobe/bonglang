@@ -59,6 +59,9 @@ class TestEvaluator(unittest.TestCase):
                 "(27%5)^2", 4,
                 "-2 * 3", -6,
                 "!true", False,
+                "let a = 42 a = 1337 a", 1337,
+                "let a = 1337 let b = 42 a = b = 15 a", 15,
+                "let a = 1337 let b = 42 a = b = 15 b", 15,
                 ]
         for i in range(0, len(tests), 2):
             statement = tests[i]
