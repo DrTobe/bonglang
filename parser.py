@@ -21,6 +21,8 @@ class Parser:
             return self.print_stmt()
         if self.peek().type == token.LET:
             return self.let_stmt()
+        if self.peek().type == token.IF:
+            return self.if_stmt()
         if self.peek().type == token.LBRACE:
             return self.block_stmt()
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
@@ -45,6 +47,19 @@ class Parser:
         expr = self.expression()
         self.match(token.SEMICOLON)
         return ast.Let(name, expr)
+
+    def if_stmt(self):
+        if not self.match(token.IF):
+            raise Exception("expected if")
+        cond = self.expression()
+        t = self.block_stmt()
+        e = None
+        if self.match(token.ELSE):
+            if self.peek().type == token.IF:
+                e = self.if_stmt()
+            else:
+                e = self.block_stmt()
+        return ast.IfElseStatement(cond, t, e)
 
     def print_stmt(self):
         if not self.match(token.PRINT):

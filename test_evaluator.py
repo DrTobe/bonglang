@@ -16,6 +16,18 @@ class TestEvaluator(unittest.TestCase):
             expected = tests[i+1]
             test_eval(statement, expected, self)
 
+    def test_if(self):
+        tests = [
+                "let a = 1337 if a == 1337 { true } else { false }", True,
+                "if false { 1337 } else { 42 }", 42,
+                "if true { 1337 }", 1337,
+                "if false { 1337 }", None, # currently blocks work like expressions but cannot be used as expressions
+                ]
+        for i in range(0, len(tests), 2):
+            statement = tests[i]
+            expected = tests[i+1]
+            test_eval(statement, expected, self)
+
     def test_shadowing(self):
         tests = [
                 "let a = 5 { let a = 10 { a } }", 10,

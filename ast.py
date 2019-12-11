@@ -8,7 +8,7 @@ class Block:
         result = []
         for stmt in self.stmts:
             result.append(str(stmt))
-        return "{\n" + "\n".join(result) + "\n}\n"
+        return "{\n" + "\n".join(result) + "\n}"
 
 class BinOp:
     def __init__(self, lhs, op, rhs):
@@ -55,6 +55,21 @@ class Let:
         self.expr = expr
     def __str__(self):
         return "let " + self.name + " = " + str(self.expr)
+
+class IfElseStatement:
+    def __init__(self, cond, t, e=None):
+        self.cond = cond
+        self.t = t
+        self.e = e
+    def __str__(self):
+        result = "if "
+        result += str(self.cond)
+        result += " "
+        result += str(self.t)
+        if self.e != None:
+            result += " else "
+            result += str(self.e)
+        return result
 
 class SysCall:
     def __init__(self, name, args):

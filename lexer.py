@@ -102,6 +102,10 @@ class Lexer:
                 return self.create_token(token.BOOL_VALUE, lex)
             if lex == "let":
                 return self.create_token(token.LET)
+            if lex == "if":
+                return self.create_token(token.IF)
+            if lex == "else":
+                return self.create_token(token.ELSE)
             return self.create_token(token.IDENTIFIER, lex)
         else:
             return self.create_token(token.ERR, "unrecognized character ("+c+")")

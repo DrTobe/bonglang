@@ -18,6 +18,13 @@ class Eval:
                 result = self.evaluate(stmt)
             self.variables = node.symbol_table.parent
             return result
+        if isinstance(node, ast.IfElseStatement):
+            cond = node.cond
+            if self.evaluate(cond):
+                return self.evaluate(node.t)
+            elif node.e != None:
+                return self.evaluate(node.e)
+            return None
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
