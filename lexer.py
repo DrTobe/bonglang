@@ -39,6 +39,8 @@ class Lexer:
                     elif c == "*" and self.match("/"):
                         commentlevel -= 1
                 return self.get_token()
+        if c == ";":
+            return self.create_token(token.SEMICOLON)
         if c == "+":
             return self.create_token(token.OP_ADD)
         if c == "-":

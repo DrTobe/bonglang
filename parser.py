@@ -29,7 +29,7 @@ class Parser:
             return self.block_stmt()
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression_stmt()
-        raise(Exception("unknown statement found"))
+        raise(Exception("unknown statement found: {}".format(str(self.peek()))))
 
     def expression_stmt(self):
         expr = self.expression()
