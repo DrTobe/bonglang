@@ -13,6 +13,7 @@ class Lexer:
 
     def get_token(self):
         c = self.next()
+        # TODO generate whitespace tokens in lexer
         while c!="" and is_whitespace(c):
             if is_newline(c) and self.last_token != None and self.last_token.type in [
                     token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE,

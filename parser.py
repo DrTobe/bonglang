@@ -25,7 +25,7 @@ class Parser:
             return self.block_stmt()
         if self.peek().type == token.IDENTIFIER: # here, everything can happen
             if self.peek(1).type == token.ASSIGN:
-                self.assignment() # TODO
+                self.assignment() # TODO implement assignment
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression_stmt()
         raise(Exception("unknown statement found"))
@@ -210,6 +210,9 @@ class Parser:
         for i in range(Parser.AHEAD):
             self.next_tokens.append(self.lexer.get_token())
 
+    # TODO Lexer generates whitespace tokens; here, implement a method that
+    # allows for checking if the next token is whitespace, skip whitespace
+    # tokens in peek; next and match rely on peek
     def peek(self, steps=0):
         if steps >= 0:
             if steps >= Parser.AHEAD:
