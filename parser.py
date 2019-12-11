@@ -159,13 +159,35 @@ class Parser:
         if self.match(token.BOOL_VALUE):
             return ast.Bool(True if self.peek(-1).lexeme=="true" else False)
         if self.match(token.IDENTIFIER):
-            return ast.Variable(self.peek(-1).lexeme)
+            if self.symbol_table.exists(self.peek(-1).lexeme):
+                return ast.Variable(self.peek(-1).lexeme)
+            name = self.peek(-1).lexeme
+            args = self.syscall_arguments()
+            return ast.SysCall(name, args)
         if self.match(token.LPAREN):
             exp = self.expression()
             if not self.match(token.RPAREN):
                 raise Exception("missing closing parenthesis )")
             return exp
         raise Exception("integer or () expected")
+
+    def syscall_arguments(self):
+        #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
+        invalid = [token.BONG, token.OP_ADD]
+        arguments = []
+        arg = ""
+        while self.peek().type not in invalid:
+            # TODO check for whitespace and start a new argument :)
+            # arguments.append(arg)
+            # arg = ""
+            c = self.next()
+            if c.type == token.OP_SUB:
+                arg += "-"
+            if c.type == token.IDENTIFIER:
+                arg += c.lexeme
+        arguments.append(arg)
+        self.next()
+        return arguments
 
     # 
     # Token access methods

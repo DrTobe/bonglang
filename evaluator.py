@@ -63,11 +63,10 @@ class Eval:
             return node.value
         elif isinstance(node, ast.Bool):
             return node.value
-        elif isinstance(node, ast.Variable):     # for identifiers, ...
-            if self.variables.exists(node.name):      # ... try variables first
-                return self.variables.get(node.name).value
-            else:                                   # ... external call then
-                return self.callprogram(node)
+        elif isinstance(node, ast.Variable):
+            return self.variables.get(node.name).value
+        elif isinstance(node, ast.SysCall):
+            self.callprogram(node)
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
@@ -78,7 +77,9 @@ class Eval:
         for path in path_var:
             filepath = path+"/"+program.name
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
-                compl = subprocess.run(program.name)
+                print(program.name, program.args)
+                cmd = [program.name] + program.args
+                compl = subprocess.run(cmd)
                 return compl.returncode
         print("bong: {}: command not found".format(program.name))
 

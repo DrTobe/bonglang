@@ -55,3 +55,10 @@ class Let:
         self.expr = expr
     def __str__(self):
         return "let " + self.name + " = " + str(self.expr)
+
+class SysCall:
+    def __init__(self, name, args):
+        self.name = name
+        self.args = args
+    def __str__(self):
+        return "(call " + self.name + " ".join(args) + ")"
