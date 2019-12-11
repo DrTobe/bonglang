@@ -17,25 +17,25 @@ class TestParser(unittest.TestCase):
 
     def test_print(self):
         testData = [
-                TestData("print 1 + 2", "print (1+2);"),
-                TestData("print 13 + 37 == 42", "print ((13+37)==42);")
+                TestData("print 1 + 2", "{\nprint (1+2);\n}\n"),
+                TestData("print 13 + 37 == 42", "{\nprint ((13+37)==42);\n}\n")
                 ]
         test_strings(self, testData)
 
     def test_expression_statement(self):
         testData = [
-                TestData("1", "1"),
-                TestData("-1", "(-1)"),
-                TestData("true", "true"),
-                TestData("!false", "(!false)"),
-                TestData("1 + 2", "(1+2)"),
-                TestData("1 + 2 + 3", "((1+2)+3)"),
-                TestData("1 - 2 - 3", "((1-2)-3)"),
-                TestData("1 + 2 * 3", "(1+(2*3))"),
-                TestData("4 * 2 + 3", "((4*2)+3)"),
-                TestData("1 + 2 ^ 3", "(1+(2^3))"),
-                TestData("1 ^ 2 ^ 3", "(1^(2^3))"),
-                TestData("true || false && 1 < 2 + 3 * 3 ^ 5" , "(true||(false&&(1<(2+(3*(3^5))))))"),
+                TestData("1", "{\n1\n}\n"),
+                TestData("-1", "{\n(-1)\n}\n"),
+                TestData("true", "{\ntrue\n}\n"),
+                TestData("!false", "{\n(!false)\n}\n"),
+                TestData("1 + 2", "{\n(1+2)\n}\n"),
+                TestData("1 + 2 + 3", "{\n((1+2)+3)\n}\n"),
+                TestData("1 - 2 - 3", "{\n((1-2)-3)\n}\n"),
+                TestData("1 + 2 * 3", "{\n(1+(2*3))\n}\n"),
+                TestData("4 * 2 + 3", "{\n((4*2)+3)\n}\n"),
+                TestData("1 + 2 ^ 3", "{\n(1+(2^3))\n}\n"),
+                TestData("1 ^ 2 ^ 3", "{\n(1^(2^3))\n}\n"),
+                TestData("true || false && 1 < 2 + 3 * 3 ^ 5" , "{\n(true||(false&&(1<(2+(3*(3^5))))))\n}\n"),
                 ]
         test_strings(self, testData)
 

@@ -3,17 +3,17 @@ import ast
 import symbol_table
 
 class Parser:
-    def __init__(self, lexer):
+    def __init__(self, lexer, symbol_table=None):
         self.lexer = lexer
         self.init_token_access()
-        self.symbol_table = symbol_table.SymbolTable()
+        self.symbol_table = symbol_table
+        if symbol_table == None:
+            self.symbol_table = symbol_table.SymbolTable()
 
     def compile(self):
         statements = []
         while self.peek().type != token.EOF:
             statements.append(self.stmt())
-        if len(statements) == 1:
-            return statements[0]
         return ast.Block(statements, self.symbol_table)
 
     def stmt(self):
