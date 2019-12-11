@@ -12,6 +12,7 @@ def main():
             code = input(">")
             if code == "q":
                 break
+            code += "\n"
             l = Lexer(code)
             p = Parser(l, symtable)
             program = p.compile()

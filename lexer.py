@@ -5,19 +5,23 @@ class Lexer:
     def __init__(self, code):
         self.code = code
         self.current_pos = 0
+        self.last_token = None
+
+    def create_token(self, typ, lexeme=None):
+        self.last_token = Token(typ, lexeme)
+        return self.last_token
 
     def get_token(self):
         c = self.next()
         while c!="" and is_whitespace(c):
+            if is_newline(c) and self.last_token != None and self.last_token.type in [
+                    token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE,
+                    token.RPAREN, token.RBRACKET
+                    ]:
+                return self.create_token(token.SEMICOLON)
             c = self.next()
         if c == "": # EOF
-            return Token(token.EOF)
-        """
-        if is_newline(c): # newlines
-            while self.peek()!="" and is_newline(self.peek()):
-                self.next()
-            return Token(token.EOL)
-        """
+            return self.create_token(token.EOF)
         if c == "/": # comments
             if self.match("/"): # single-line comment starts
                 while self.peek()!="" and not is_newline(self.peek()):
@@ -35,76 +39,71 @@ class Lexer:
                         commentlevel -= 1
                 return self.get_token()
         if c == "+":
-            return Token(token.OP_ADD)
+            return self.create_token(token.OP_ADD)
         if c == "-":
-            return Token(token.OP_SUB)
+            return self.create_token(token.OP_SUB)
         if c == "*":
-            return Token(token.OP_MULT)
+            return self.create_token(token.OP_MULT)
         if c == "/":
-            return Token(token.OP_DIV)
+            return self.create_token(token.OP_DIV)
         if c == "%":
-            return Token(token.OP_MOD)
+            return self.create_token(token.OP_MOD)
         if c == "^":
-            return Token(token.OP_POW)
+            return self.create_token(token.OP_POW)
         if c == "(":
-            return Token(token.LPAREN)
+            return self.create_token(token.LPAREN)
         if c == ")":
-            return Token(token.RPAREN)
+            return self.create_token(token.RPAREN)
         if c == "{":
-            return Token(token.LBRACE)
+            return self.create_token(token.LBRACE)
         if c == "}":
-            return Token(token.RBRACE)
+            return self.create_token(token.RBRACE)
         if c == "[":
-            return Token(token.LBRACKET)
+            return self.create_token(token.LBRACKET)
         if c == "]":
-            return Token(token.RBRACKET)
+            return self.create_token(token.RBRACKET)
         if c == "=":
             if self.match("="):
-                return Token(token.OP_EQ)
-            return Token(token.ASSIGN)
+                return self.create_token(token.OP_EQ)
+            return self.create_token(token.ASSIGN)
         if c == "!":
             if self.match("="):
-                return Token(token.OP_NEQ)
-            return Token(token.OP_NEG)
+                return self.create_token(token.OP_NEQ)
+            return self.create_token(token.OP_NEG)
         if c == "<":
             if self.match("="):
-                return Token(token.OP_LE)
-            return Token(token.OP_LT)
+                return self.create_token(token.OP_LE)
+            return self.create_token(token.OP_LT)
         if c == ">":
             if self.match("="):
-                return Token(token.OP_GE)
-            return Token(token.OP_GT)
+                return self.create_token(token.OP_GE)
+            return self.create_token(token.OP_GT)
         if c == "&":
             if self.match("&"):
-                return Token(token.OP_AND)
+                return self.create_token(token.OP_AND)
             raise Exception("single & not supported (yet?)")
         if c == "|":
             if self.match("|"):
-                return Token(token.OP_OR)
-            return Token(token.BONG)
+                return self.create_token(token.OP_OR)
+            return self.create_token(token.BONG)
         if is_number(c):
             lex = c
             while is_number(self.peek()):
                 lex += self.next()
-            return Token(token.INT_VALUE, lex)
+            return self.create_token(token.INT_VALUE, lex)
         if is_alpha(c):
             lex = c
             while is_alpha(self.peek()):
                 lex += self.next()
             if lex == "print":
-                return Token(token.PRINT)
+                return self.create_token(token.PRINT)
             if lex == "true" or lex == "false":
-                return Token(token.BOOL_VALUE, lex)
+                return self.create_token(token.BOOL_VALUE, lex)
             if lex == "let":
-                return Token(token.LET)
-            """
-            replaced by dictionary in the future
-            if lex == "if":
-                return Token(token.IF)
-            """
-            return Token(token.IDENTIFIER, lex)
+                return self.create_token(token.LET)
+            return self.create_token(token.IDENTIFIER, lex)
         else:
-            return Token(token.ERR, "unrecognized character ("+c+")")
+            return self.create_token(token.ERR, "unrecognized character ("+c+")")
 
     def peek(self):
         return self.code[self.current_pos] if self.current_pos < len(self.code) else ""

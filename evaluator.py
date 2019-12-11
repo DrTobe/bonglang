@@ -66,7 +66,7 @@ class Eval:
         elif isinstance(node, ast.Variable):
             return self.variables.get(node.name).value
         elif isinstance(node, ast.SysCall):
-            self.callprogram(node)
+            return self.callprogram(node)
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
@@ -77,7 +77,6 @@ class Eval:
         for path in path_var:
             filepath = path+"/"+program.name
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
-                print(program.name, program.args)
                 cmd = [program.name] + program.args
                 compl = subprocess.run(cmd)
                 return compl.returncode

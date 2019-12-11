@@ -3,11 +3,11 @@ import ast
 import symbol_table
 
 class Parser:
-    def __init__(self, lexer, symbol_table=None):
+    def __init__(self, lexer, symtable=None):
         self.lexer = lexer
         self.init_token_access()
-        self.symbol_table = symbol_table
-        if symbol_table == None:
+        self.symbol_table = symtable
+        if symtable == None:
             self.symbol_table = symbol_table.SymbolTable()
 
     def compile(self):
@@ -27,8 +27,13 @@ class Parser:
             if self.peek(1).type == token.ASSIGN:
                 self.assignment() # TODO
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
-            return self.expression()
+            return self.expression_stmt()
         raise(Exception("unknown statement found"))
+
+    def expression_stmt(self):
+        expr = self.expression()
+        self.match(token.SEMICOLON)
+        return expr
 
     def let_stmt(self):
         if not self.match(token.LET):
@@ -41,12 +46,14 @@ class Parser:
         if not self.match(token.ASSIGN):
             raise Exception("FUCK2")
         expr = self.expression()
+        self.match(token.SEMICOLON)
         return ast.Let(name, expr)
 
     def print_stmt(self):
         if not self.match(token.PRINT):
             raise(Exception("expected print statement"))
         res = ast.Print(self.expression())
+        self.match(token.SEMICOLON)
         return res
 
     def block_stmt(self):
@@ -173,7 +180,7 @@ class Parser:
 
     def syscall_arguments(self):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
-        invalid = [token.BONG, token.OP_ADD]
+        invalid = [token.BONG, token.SEMICOLON]
         arguments = []
         arg = ""
         while self.peek().type not in invalid:

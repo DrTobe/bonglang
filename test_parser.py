@@ -11,7 +11,8 @@ class TestParser(unittest.TestCase):
     def test_program(self):
         testData = [
                 TestData("print 1 + 2 13 + 37", "{\nprint (1+2);\n(13+37)\n}\n"),
-                TestData("13 42 print 13 + 37 == 42 41 - 21", "{\n13\n42\nprint ((13+37)==42);\n(41-21)\n}\n")
+                TestData("13 42 print 13 + 37 == 42 41 - 21", "{\n13\n42\nprint ((13+37)==42);\n(41-21)\n}\n"),
+                TestData("print 1 + 2\n13 + 37\n", "{\nprint (1+2);\n(13+37)\n}\n"),
                 ]
         test_strings(self, testData)
 
