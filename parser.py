@@ -68,6 +68,7 @@ class Parser:
         body = self.block_stmt()
         self.symbol_table = original_symbol_table
         self.functions.register(name)
+        original_symbol_table.register(name)
         original_symbol_table.get(name).Value = ast.FunctionDefinition(name, parameters, body, func_symbol_table)
         return None # function definition is in the symbol table, so we don't need to return it
 
@@ -233,7 +234,7 @@ class Parser:
             return ast.Bool(True if self.peek(-1).lexeme=="true" else False)
         if self.match(token.IDENTIFIER):
             if self.match(token.LPAREN):
-                func_name = self.peek(-2)
+                func_name = self.peek(-2).lexeme
                 arguments = self.parse_arguments()
                 if not self.match(token.RPAREN):
                     raise Exception("missing ) on function call")

@@ -22,6 +22,12 @@ class TestParser(unittest.TestCase):
                 ]
         test_strings(self, testData)
 
+    def test_function_definition(self):
+        testData = [
+                TestData("func someFunc() { let a = 1337 }", "{\n\n}"),
+                ]
+        test_strings(self, testData)
+
 
     def test_if(self):
         testData = [
