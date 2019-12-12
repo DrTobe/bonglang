@@ -80,7 +80,6 @@ class Parser:
     def block_stmt(self):
         if not self.match(token.LBRACE):
             raise(Exception("expected { for block statement"))
-        # TODO create new scope
         block_symbol_table = symbol_table.SymbolTable(self.symbol_table)
         self.symbol_table = block_symbol_table
         statements = []
@@ -88,7 +87,6 @@ class Parser:
             statements.append(self.stmt())
         if not self.match(token.RBRACE):
             raise(Exception("missing } for block statement"))
-        # TODO delete scope
         self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
@@ -194,8 +192,8 @@ class Parser:
             if self.symbol_table.exists(self.peek(-1).lexeme):
                 return ast.Variable(self.peek(-1).lexeme)
             name = self.peek(-1).lexeme
-            args = self.syscall_arguments()
-            return ast.SysCall(name, args)
+            args = self.syscall_arguments(name)
+            return ast.SysCall(args)
         if self.match(token.LPAREN):
             exp = self.expression()
             if not self.match(token.RPAREN):
@@ -203,22 +201,27 @@ class Parser:
             return exp
         raise Exception("integer or () expected")
 
-    def syscall_arguments(self):
+    def syscall_arguments(self, name):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
-        invalid = [token.BONG, token.SEMICOLON]
+        # TODO complete list of invalid tokens (which finish syscall args)
+        invalid = [token.BONG, token.SEMICOLON, token.EOF, token.ERR]
         arguments = []
-        arg = ""
+        arg = name
         while self.peek().type not in invalid:
-            # TODO check for whitespace and start a new argument :)
-            # arguments.append(arg)
-            # arg = ""
             c = self.next()
-            if c.type == token.OP_SUB:
-                arg += "-"
-            if c.type == token.IDENTIFIER:
+            # if whitespace is found, this goes to the next arg
+            if c.prec_by_space:
+                arguments.append(arg)
+                arg = ""
+            # for valid tokens, translate 
+            # only for int_value, bool_value, identifier, we have to use the lexeme
+            # otherwise, the type is equivalent to what was matched before (which is what we want to restore here)
+            if c.type in [token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE]:
                 arg += c.lexeme
+            else:
+                arg += c.type
         arguments.append(arg)
-        self.next()
+        self.match(token.SEMICOLON) # match away a possible semicolon
         return arguments
 
     # 

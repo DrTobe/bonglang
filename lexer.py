@@ -6,20 +6,24 @@ class Lexer:
         self.code = code
         self.current_pos = 0
         self.last_token = None
+        self.had_whitespace = False
 
     def create_token(self, typ, lexeme=None):
-        self.last_token = Token(typ, lexeme)
+        self.last_token = Token(typ, self.had_whitespace, lexeme)
+        self.had_whitespace = False
         return self.last_token
 
     def get_token(self):
         c = self.next()
-        # TODO generate whitespace tokens in lexer
         while c!="" and is_whitespace(c):
+            # implicit semicolons
             if is_newline(c) and self.last_token != None and self.last_token.type in [
                     token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE,
                     token.RPAREN, token.RBRACKET
                     ]:
                 return self.create_token(token.SEMICOLON)
+            # squeeze multiple whitespaces together
+            self.had_whitespace = True
             c = self.next()
         if c == "": # EOF
             return self.create_token(token.EOF)
@@ -41,6 +45,8 @@ class Lexer:
                 return self.get_token()
         if c == ";":
             return self.create_token(token.SEMICOLON)
+        if c == ".":
+            return self.create_token(token.DOT)
         if c == "+":
             return self.create_token(token.OP_ADD)
         if c == "-":

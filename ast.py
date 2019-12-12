@@ -79,8 +79,7 @@ class WhileStatement:
         return "while {} {}".format(str(self.cond), str(self.t))
 
 class SysCall:
-    def __init__(self, name, args):
-        self.name = name
+    def __init__(self, args):
         self.args = args
     def __str__(self):
-        return "(call " + self.name + " ".join(args) + ")"
+        return "(call " + " ".join(args) + ")"

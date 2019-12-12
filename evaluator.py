@@ -92,12 +92,23 @@ class Eval:
             self.variables.get(node.name).value = self.evaluate(node.expr)
 
     def callprogram(self, program):
+        if program.args[0] == "cd":
+            return self.call_cd(program.args)
         path_var = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/local/sbin"]
         for path in path_var:
-            filepath = path+"/"+program.name
+            filepath = path+"/"+program.args[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
-                cmd = [program.name] + program.args
-                compl = subprocess.run(cmd)
+                compl = subprocess.run(program.args)
                 return compl.returncode
-        print("bong: {}: command not found".format(program.name))
+        print("bong: {}: command not found".format(program.args[0]))
 
+    def call_cd(self, args):
+        if len(args) > 2:
+            print("bong: cd: too many arguments")
+            return 1
+        try:
+            os.chdir(args[1])
+            return 0
+        except Exception as e:
+            print("bong: cd: {}".format(e.strerror))
+            return 1

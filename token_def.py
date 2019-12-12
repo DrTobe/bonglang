@@ -1,6 +1,7 @@
 class Token:
-    def __init__(self, typ, lexeme = None):
+    def __init__(self, typ, prec_by_space = False, lexeme = None):
         self.type = typ
+        self.prec_by_space = prec_by_space
         self.lexeme = lexeme
     def __str__(self):
         if self.lexeme != None:
@@ -11,6 +12,7 @@ BONG = "|"
 ERR = "ERROR"
 EOF = "EOF"
 ASSIGN = "="
+DOT = "."
 SEMICOLON = ";"
 LBRACE = "{"
 RBRACE = "}"
@@ -36,7 +38,7 @@ OP_LE = "<="
 OP_AND = "&&"
 OP_OR = "||"
 OP_NEG = "!"
-PRINT = "PRINT"
+PRINT = "print"
 LET = "let"
 IF = "if"
 ELSE = "else"
