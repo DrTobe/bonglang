@@ -16,6 +16,13 @@ class TestParser(unittest.TestCase):
                 ]
         test_strings(self, testData)
 
+    def test_call(self):
+        testData = [
+                TestData("someFunc()", "{\nsomeFunc()\n}"),
+                ]
+        test_strings(self, testData)
+
+
     def test_if(self):
         testData = [
                 TestData("if true { 1337 }", "{\nif true {\n1337\n}\n}"),
