@@ -3,20 +3,24 @@ import ast
 # For subprocesses
 import os
 import subprocess
-from symbol_table import SymbolTable
+from environment import Environment
 
 class Eval:
     def __init__(self, printfunc=print):
-        self.variables = SymbolTable(None)
+        self.environment = Environment()
         self.printfunc = printfunc
+        self.functions = Environment()
 
     def evaluate(self, node):
+        if isinstance(node, ast.Program):
+            self.functions.add_definitions(node.functions)
+            return self.evaluate(node.body)
         if isinstance(node, ast.Block):
-            self.variables = node.symbol_table
+            self.push_new_env()
             result = None
             for stmt in node.stmts:
                 result = self.evaluate(stmt)
-            self.variables = node.symbol_table.parent
+            self.pop_env()
             return result
         if isinstance(node, ast.IfElseStatement):
             cond = node.cond
@@ -30,6 +34,12 @@ class Eval:
             while self.evaluate(node.cond):
                 ret = self.evaluate(node.t)
             return ret
+        if isinstance(node, ast.FunctionCall):
+            function = self.functions.get(node.name)
+            if not isinstance(function, ast.FunctionDefinition):
+                raise Exception("can only call functions")
+            # set arguments to parameters
+            return self.evaluate(function.body)
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
@@ -37,7 +47,7 @@ class Eval:
                     raise Exception("Fucker")
                 name = node.lhs.name
                 value = self.evaluate(node.rhs)
-                self.variables.get(name).value = value
+                self.environment.set(name, value)
                 return value
             lhs = self.evaluate(node.lhs)
             rhs = self.evaluate(node.rhs)
@@ -83,13 +93,15 @@ class Eval:
         elif isinstance(node, ast.Bool):
             return node.value
         elif isinstance(node, ast.Variable):
-            return self.variables.get(node.name).value
+            return self.environment.get(node.name)
         elif isinstance(node, ast.SysCall):
             return self.callprogram(node)
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
-            self.variables.get(node.name).value = self.evaluate(node.expr)
+            self.environment.set(node.name, self.evaluate(node.expr))
+        else:
+            raise Exception("unknown ast node")
 
     def callprogram(self, program):
         if program.args[0] == "cd":
@@ -112,3 +124,14 @@ class Eval:
         except Exception as e:
             print("bong: cd: {}".format(e.strerror))
             return 1
+
+    def push_env(self, new_env):
+        current_env = self.environment
+        self.environment = new_env
+        return current_env
+
+    def push_new_env(self):
+        return self.push_env(Environment(self.environment))
+
+    def pop_env(self):
+        self.environment = self.environment.parent

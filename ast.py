@@ -1,5 +1,12 @@
 import token_def as token
 
+class Program:
+    def __init__(self, body, functions):
+        self.body = body
+        self.functions = functions
+    def __str__(self):
+        return str(self.body)
+
 class Block:
     def __init__(self, stmts, symbol_table):
         self.stmts = stmts

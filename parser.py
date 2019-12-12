@@ -1,6 +1,7 @@
 import token_def as token
 import ast
 import symbol_table
+import environment
 
 class Parser:
     def __init__(self, lexer, symtable=None, functions=None):
@@ -11,7 +12,7 @@ class Parser:
         else:
             self.symbol_table = symtable
         if functions == None:
-            self.functions = symbol_table.SymbolTable()
+            self.functions = environment.Environment()
         else:
             self.functions = functions
 
@@ -21,7 +22,8 @@ class Parser:
             stmt = self.top_level_stmt()
             if stmt != None:
                 statements.append(stmt)
-        return ast.Block(statements, self.symbol_table)
+        body = ast.Block(statements, self.symbol_table)
+        return ast.Program(body, self.functions)
 
     def top_level_stmt(self):
         if self.peek().type == token.FUNC:
@@ -67,9 +69,10 @@ class Parser:
             self.symbol_table.register(param)
         body = self.block_stmt()
         self.symbol_table = original_symbol_table
-        self.functions.register(name)
+        func = ast.FunctionDefinition(name, parameters, body, func_symbol_table)
+        self.functions.set(name, func)
         original_symbol_table.register(name)
-        original_symbol_table.get(name).Value = ast.FunctionDefinition(name, parameters, body, func_symbol_table)
+        # todo, set type to function in symbol table
         return None # function definition is in the symbol table, so we don't need to return it
 
     def parse_parameters(self):

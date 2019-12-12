@@ -6,6 +6,16 @@ from parser import Parser
 from evaluator import Eval
 
 class TestEvaluator(unittest.TestCase):
+    def test_function(self):
+        tests = [
+                "func f() {}", None,
+                "func f() {} f()", None,
+                ]
+        for i in range(0, len(tests), 2):
+            statement = tests[i]
+            expected = tests[i+1]
+            test_eval(statement, expected, self)
+
     def test_let(self):
         tests = [
                 "let a = 1337 a", 1337,

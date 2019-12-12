@@ -24,9 +24,14 @@ class TestParser(unittest.TestCase):
 
     def test_function_definition(self):
         testData = [
-                TestData("func someFunc() { let a = 1337 }", "{\n\n}"),
+                TestData("func someFunc() { let a = 1337 }", "someFunc"),
                 ]
-        test_strings(self, testData)
+        for td in testData:
+            program = translate(td.sourcecode)
+            try:
+                self.assertNotEqual(program.functions.get(td.expectedStr), None)
+            except:
+                self.fail("Expected function to exist")
 
 
     def test_if(self):
