@@ -92,8 +92,8 @@ class TestLexer(unittest.TestCase):
         test_lexemes(self, sourcecode, expectedValues)
 
     def test_keywords(self):
-        sourcecode = "let print let if else"
-        expectedTypes = [LET, PRINT, LET, IF, ELSE]
+        sourcecode = "let print let if else while func"
+        expectedTypes = [LET, PRINT, LET, IF, ELSE, WHILE, FUNC]
         test_token_types(self, sourcecode, expectedTypes)
 
 def test_token_types(test_class, sourcecode, expectedTypes):

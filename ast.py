@@ -83,3 +83,30 @@ class SysCall:
         self.args = args
     def __str__(self):
         return "(call " + " ".join(args) + ")"
+
+class FunctionDefinition:
+    def __init__(self, name, parameters, body, symbol_table):
+        self.name = name
+        self.parameters = parameters
+        self.body = body
+        self.symbol_table = symbol_table
+    def __str__(self):
+        result = self.name + "("
+        result += ", ".join(self.parameters)
+        result += ") "
+        result += str(self.body)
+        return result
+
+class FunctionCall:
+    def __init__(self, name, args):
+        self.name = name
+        self.args = args
+    def __str__(self):
+        result = self.name + "("
+        args = []
+        for a in self.args:
+            args.append(str(s))
+        result += ", ".join(args)
+        result += ")"
+        return result
+

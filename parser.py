@@ -3,18 +3,30 @@ import ast
 import symbol_table
 
 class Parser:
-    def __init__(self, lexer, symtable=None):
+    def __init__(self, lexer, symtable=None, functions=None):
         self.lexer = lexer
         self.init_token_access()
-        self.symbol_table = symtable
         if symtable == None:
             self.symbol_table = symbol_table.SymbolTable()
+        else:
+            self.symbol_table = symtable
+        if functions == None:
+            self.functions = symbol_table.SymbolTable()
+        else:
+            self.functions = functions
 
     def compile(self):
         statements = []
         while self.peek().type != token.EOF:
-            statements.append(self.stmt())
+            stmt = self.top_level_stmt()
+            if stmt != None:
+                statements.append(stmt)
         return ast.Block(statements, self.symbol_table)
+
+    def top_level_stmt(self):
+        if self.peek().type == token.FUNC:
+            return self.parse_function_definition()
+        return self.stmt()
 
     def stmt(self):
         if self.peek().type == token.PRINT:
@@ -30,6 +42,37 @@ class Parser:
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression_stmt()
         raise(Exception("unknown statement found: {}".format(str(self.peek()))))
+
+    def parse_function_definition(self):
+        if not self.match(token.FUNC):
+            raise Exception("expected function definition")
+
+        if not self.match(token.IDENTIFIER):
+            raise Exception("expected function name")
+
+        name = self.peek(-1).lexeme
+        if not self.match(token.LPAREN):
+            raise Exception("expected ( to start the parameter list")
+        parameters = self.parse_parameters()
+        if not self.match(token.RPAREN):
+            raise Exception("expected ) to end the parameter list")
+
+        if not self.peek().type == token.LBRACE:
+            raise Exception("expected function body")
+
+        original_symbol_table = self.symbol_table
+        func_symbol_table = symbol_table.SymbolTable()
+        self.symbol_table = func_symbol_table
+        for param in parameters:
+            self.symbol_table.register(param)
+        body = self.block_stmt()
+        self.symbol_table = original_symbol_table
+        self.functions.register(name)
+        original_symbol_table.get(name).Value = ast.FunctionDefinition(name, parameters, body, func_symbol_table)
+        return None # function definition is in the symbol table, so we don't need to return it
+
+    def parse_parameters(self):
+        return []
 
     def expression_stmt(self):
         expr = self.expression()
@@ -189,6 +232,12 @@ class Parser:
         if self.match(token.BOOL_VALUE):
             return ast.Bool(True if self.peek(-1).lexeme=="true" else False)
         if self.match(token.IDENTIFIER):
+            if self.match(token.LPAREN):
+                func_name = self.peek(-2)
+                arguments = self.parse_arguments()
+                if not self.match(token.RPAREN):
+                    raise Exception("missing ) on function call")
+                return ast.FunctionCall(func_name, arguments)
             if self.symbol_table.exists(self.peek(-1).lexeme):
                 return ast.Variable(self.peek(-1).lexeme)
             name = self.peek(-1).lexeme
@@ -200,6 +249,9 @@ class Parser:
                 raise Exception("missing closing parenthesis )")
             return exp
         raise Exception("integer or () expected")
+
+    def parse_arguments(self):
+        return []
 
     def syscall_arguments(self, name):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
