@@ -4,7 +4,9 @@ from evaluator import Eval
 import traceback
 from symbol_table import SymbolTable
 
-import subprocess # now, we're going shell
+# now, we're going shell
+import subprocess
+import readline # just this line enables command-history :)
 
 # it's a pity, I have to define this function, but bong is not yet
 # available :(
@@ -12,9 +14,14 @@ def run(cmd):
     res = subprocess.run(cmd, stdout=subprocess.PIPE, encoding="utf-8")
     return res.stdout[:-1] # omit \n at the end
 
+def tab_completer(text, i): # i = it is called several times
+    return 'bong' if i < 1 else None
+
 def main():
     evaluator = Eval()
     symtable = SymbolTable()
+    readline.set_completer(tab_completer)
+    readline.parse_and_bind("tab: complete")
     while True:
         try:
             # towards a nicer repl-experience
