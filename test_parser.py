@@ -16,11 +16,28 @@ class TestParser(unittest.TestCase):
                 ]
         test_strings(self, testData)
 
-    def test_call(self):
+    def test_functioncall(self):
         testData = [
                 TestData("someFunc()", "{\nsomeFunc()\n}"),
                 ]
         test_strings(self, testData)
+
+    def test_syscall(self):
+        data = [
+                "ls -la", "{\n(call ls -la)\n}",
+                "grep foo", "{\n(call grep foo)\n}",
+                "cd /home/bong/unittest", "{\n(call cd /home/bong/unittest)\n}",
+                "grep foo\nls -la", "{\n(call grep foo)\n(call ls -la)\n}",
+                ]
+        test_strings_list(self, data)
+
+    def test_pipe(self):
+        data = [
+                "ls -la | grep foo", "{\n(call ls -la) | (call grep foo)\n}",
+                "cd | grep", "{\n(call cd) | (call grep)\n}", # parses, but does not run
+                "ls | grep foo | grep bar", "{\n(call ls) | (call grep foo) | (call grep bar)\n}",
+                ]
+        test_strings_list(self, data)
 
     def test_function_definition(self):
         testData = [

@@ -3,9 +3,12 @@ import lexer
 from token_def import *
 
 class TestLexer(unittest.TestCase):
-    def test_bong(self):
+    def test_pipe(self):
         sourcecode = "|"
         expectedTypes = [BONG]
+        test_token_types(self, sourcecode, expectedTypes)
+        sourcecode = "ls | grep foo"
+        expectedTypes = [IDENTIFIER, BONG, IDENTIFIER, IDENTIFIER]
         test_token_types(self, sourcecode, expectedTypes)
 
     def test_singleline_comments(self):
