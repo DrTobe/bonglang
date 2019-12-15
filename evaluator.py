@@ -106,7 +106,7 @@ class Eval:
     def callprogram(self, program):
         if program.args[0] == "cd":
             return self.call_cd(program.args)
-        path_var = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/local/sbin"]
+        path_var = os.environ['PATH'].split(':')
         for path in path_var:
             filepath = path+"/"+program.args[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
