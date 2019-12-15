@@ -91,11 +91,18 @@ class WhileStatement:
     def __str__(self):
         return "while {} {}".format(str(self.cond), str(self.t))
 
+class Pipe:
+    def __init__(self, lhs, rhs):
+        self.lhs = lhs
+        self.rhs = rhs
+    def __str__(self):
+        return "{} | {}".format(str(self.lhs), str(self.rhs))
+
 class SysCall:
     def __init__(self, args):
         self.args = args
     def __str__(self):
-        return "(call " + " ".join(args) + ")"
+        return "(call " + " ".join(self.args) + ")"
 
 class FunctionDefinition:
     def __init__(self, name, parameters, body, symbol_table):

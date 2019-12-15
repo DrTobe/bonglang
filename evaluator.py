@@ -11,7 +11,7 @@ class Eval:
         self.printfunc = printfunc
         self.functions = Environment()
 
-    def evaluate(self, node):
+    def evaluate(self, node, stdin=None, pipe_output=False):
         if isinstance(node, ast.Program):
             self.functions.add_definitions(node.functions)
             return self.evaluate(node.body)
@@ -34,12 +34,6 @@ class Eval:
             while self.evaluate(node.cond):
                 ret = self.evaluate(node.t)
             return ret
-        if isinstance(node, ast.FunctionCall):
-            function = self.functions.get(node.name)
-            if not isinstance(function, ast.FunctionDefinition):
-                raise Exception("can only call functions")
-            # set arguments to parameters
-            return self.evaluate(function.body)
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
@@ -94,10 +88,36 @@ class Eval:
             return node.value
         elif isinstance(node, ast.Bool):
             return node.value
+        elif isinstance(node, ast.Pipe):
+            # TODO Currently, it seems to be working, so I am just super happy.
+            # But it seems to me that all these different cases can be mostly
+            # unified by just using the proper options.
+            if stdin == None: # default case: leftmost syscall
+                lhs = self.evaluate(node.lhs, pipe_output=True)
+            else:
+                lhs = self.evaluate(node.lhs, stdin=stdin, pipe_output=True)
+            if not pipe_output: # default (easiest) case: rightmost syscall
+                rhs = self.evaluate(node.rhs, stdin=lhs.stdout)
+            else:
+                rhs = self.evaluate(node.rhs, stdin=lhs.stdout, pipe_output=True)
+            lhs.stdout.close() # taken from python subprocess documentation
+            if not pipe_output:
+                rhs.communicate() # TODO is this necessary when the output isn't piped?
+                return rhs.returncode
+            else:
+                # return the popen object so that the caller can call
+                # communicate() on it
+                return rhs
         elif isinstance(node, ast.Variable):
             return self.environment.get(node.name)
+        if isinstance(node, ast.FunctionCall):
+            function = self.functions.get(node.name)
+            if not isinstance(function, ast.FunctionDefinition):
+                raise Exception("can only call functions")
+            # set arguments to parameters
+            return self.evaluate(function.body)
         elif isinstance(node, ast.SysCall):
-            return self.callprogram(node)
+            return self.callprogram(node, stdin, pipe_output)
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
@@ -105,15 +125,26 @@ class Eval:
         else:
             raise Exception("unknown ast node")
 
-    def callprogram(self, program):
+    def callprogram(self, program, stdin, pipe_output):
         if program.args[0] == "cd":
+            if stdin != None or pipe_output:
+                print("bong: cd: can not be piped")
+                # TODO Here, the calling pipe will crash :( return something
+                # usable instead!
+                return None
             return self.call_cd(program.args)
         path_var = os.environ['PATH'].split(':')
         for path in path_var:
             filepath = path+"/"+program.args[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
-                compl = subprocess.run(program.args)
-                return compl.returncode
+                # TODO See above: I think that maybe, these cases can be
+                # unified.
+                if stdin == None and not pipe_output:
+                    compl = subprocess.run(program.args)
+                    return compl.returncode
+                else:
+                    stdout = subprocess.PIPE if pipe_output else None
+                    return subprocess.Popen(program.args, stdin=stdin, stdout=stdout)
         print("bong: {}: command not found".format(program.args[0]))
 
     def call_cd(self, args):
