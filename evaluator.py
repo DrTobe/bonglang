@@ -108,7 +108,7 @@ class Eval:
     def callprogram(self, program):
         if program.args[0] == "cd":
             return self.call_cd(program.args)
-        path_var = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/local/sbin"]
+        path_var = os.environ['PATH'].split(':')
         for path in path_var:
             filepath = path+"/"+program.args[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
@@ -121,10 +121,13 @@ class Eval:
             print("bong: cd: too many arguments")
             return 1
         try:
-            os.chdir(args[1])
+            if len(args) > 1:
+                os.chdir(args[1])
+            else:
+                os.chdir(os.path.expanduser('~'))
             return 0
         except Exception as e:
-            print("bong: cd: {}".format(e.strerror))
+            print("bong: cd: {}".format(str(e)))
             return 1
 
     def push_env(self, new_env):
