@@ -38,6 +38,12 @@ class Integer:
     def __str__(self):
         return str(self.value)
 
+class String:
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return str(self.value)
+
 class Bool:
     def __init__(self, value):
         self.value = value
@@ -116,4 +122,3 @@ class FunctionCall:
         result += ", ".join(args)
         result += ")"
         return result
-

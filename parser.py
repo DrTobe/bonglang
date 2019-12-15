@@ -158,7 +158,7 @@ class Parser:
         while self.match(token.OP_AND):
             lhs = ast.BinOp(lhs, "&&", self.parse_not())
         return lhs
-    
+
     def parse_not(self):
         if self.match(token.OP_NEG):
             return ast.UnaryOp("!", self.parse_not())
@@ -233,6 +233,8 @@ class Parser:
     def primary(self):
         if self.match(token.INT_VALUE):
             return ast.Integer(int(self.peek(-1).lexeme))
+        if self.match(token.STRING):
+            return ast.String(str(self.peek(-1).lexeme))
         if self.match(token.BOOL_VALUE):
             return ast.Bool(True if self.peek(-1).lexeme=="true" else False)
         if self.match(token.IDENTIFIER):
@@ -269,7 +271,7 @@ class Parser:
             if c.prec_by_space:
                 arguments.append(arg)
                 arg = ""
-            # for valid tokens, translate 
+            # for valid tokens, translate
             # only for int_value, bool_value, identifier, we have to use the lexeme
             # otherwise, the type is equivalent to what was matched before (which is what we want to restore here)
             if c.type in [token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE]:
@@ -280,7 +282,7 @@ class Parser:
         self.match(token.SEMICOLON) # match away a possible semicolon
         return arguments
 
-    # 
+    #
     # Token access methods
     # This is implemented with a list of tokens for the future / look ahead
     # and a list for the past / looking back
@@ -323,4 +325,3 @@ class Parser:
                 self.next()
                 return True
         return False
-

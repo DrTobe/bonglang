@@ -19,7 +19,7 @@ class Lexer:
             # implicit semicolons
             if is_newline(c) and self.last_token != None and self.last_token.type in [
                     token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE,
-                    token.RPAREN, token.RBRACKET
+                    token.RPAREN, token.RBRACKET, token.STRING
                     ]:
                 return self.create_token(token.SEMICOLON)
             # squeeze multiple whitespaces together
@@ -119,6 +119,11 @@ class Lexer:
             if lex == "func":
                 return self.create_token(token.FUNC)
             return self.create_token(token.IDENTIFIER, lex)
+        if "\"" == c: # begin of a string
+            lex = ""
+            while not self.match("\""):
+                lex += self.next()
+            return self.create_token(token.STRING, lex)
         else:
             return self.create_token(token.ERR, "unrecognized character ("+c+")")
 

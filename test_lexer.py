@@ -96,6 +96,16 @@ class TestLexer(unittest.TestCase):
         expectedTypes = [LET, PRINT, LET, IF, ELSE, WHILE, FUNC]
         test_token_types(self, sourcecode, expectedTypes)
 
+    def test_string(self):
+        sourcecode = "\"ABCDE\""
+        expectedTypes = [STRING]
+        test_token_types(self, sourcecode, expectedTypes)
+        sourcecode = "\"\""
+        expectedTypes = [STRING]
+        test_token_types(self, sourcecode, expectedTypes)
+
+
+
 def test_token_types(test_class, sourcecode, expectedTypes):
     l = createLexer(sourcecode)
     for t in expectedTypes:

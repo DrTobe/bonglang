@@ -90,6 +90,8 @@ class Eval:
             raise Exception("unrecognised unary operator: " + str(node.op))
         elif isinstance(node, ast.Integer):
             return node.value
+        elif isinstance(node, ast.String):
+            return node.value
         elif isinstance(node, ast.Bool):
             return node.value
         elif isinstance(node, ast.Variable):
