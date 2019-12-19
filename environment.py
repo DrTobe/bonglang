@@ -37,3 +37,14 @@ class Environment:
             value = otherEnv.get(d)
             self.register(key)
             self.set(key, value)
+
+    def __str__(self):
+        x = "Environment "
+        if self.parent != None:
+            x += "(" + str(self.parent) + ") "
+        x += "{\n"
+        for name,value in self.values.items():
+            x += name + " = " + str(value) + "\n"
+        x += "}"
+        return x
+

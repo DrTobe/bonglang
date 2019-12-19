@@ -18,6 +18,15 @@ class SymbolTable:
         if self.parent != None:
             return self.parent.get(name)
         raise(Exception("symbol {} does not exist in table".format(name)))
+    def __str__(self):
+        x = "SymbolTable "
+        if self.parent != None:
+            x += "(" + str(self.parent) + ") "
+        x += "{\n"
+        for name,symbol in self.names.items():
+            x += name + " : " + str(symbol.typ) + " = " + str(symbol.value) + "\n"
+        x += "}"
+        return x
 
 class Symbol:
     def __init__(self):
