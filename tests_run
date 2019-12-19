@@ -1,3 +1,4 @@
+#!/usr/bin/bash
 python -m unittest test_lexer.py
 python -m unittest test_parser.py
 python -m unittest test_evaluator.py

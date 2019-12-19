@@ -102,7 +102,7 @@ class Lexer:
             return self.create_token(token.INT_VALUE, lex)
         if is_alpha(c):
             lex = c
-            while is_alpha(self.peek()):
+            while is_alpha(self.peek()) or self.peek()=="_":
                 lex += self.next()
             if lex == "print":
                 return self.create_token(token.PRINT)

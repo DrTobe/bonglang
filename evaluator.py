@@ -134,8 +134,16 @@ class Eval:
                 return None
             return self.call_cd(program.args)
         path_var = os.environ['PATH'].split(':')
+        # Special case: Syscalls with relative or absolute path ('./foo', '../foo' and '/foo/bar')
+        if program.args[0].startswith('./') or program.args[0].startswith('../') or program.args[0].startswith('/'):
+            path_var = [""]
         for path in path_var:
-            filepath = path+"/"+program.args[0]
+            if len(path) > 0:
+                if not path.endswith('/'):
+                    path += "/"
+                filepath = path+program.args[0]
+            else:
+                filepath = program.args[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
                 # TODO See above: I think that maybe, these cases can be
                 # unified.

@@ -43,6 +43,16 @@ class Parser:
             return self.block_stmt()
         if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression_stmt()
+        # Special cases: Syscalls in current directory like './foo' or with
+        # absolute path like '/foo/bar'
+        if (self.peek(0).type==token.OP_DIV and
+                self.peek(1).type==token.IDENTIFIER or
+                self.peek(0).type==token.DOT and
+                self.peek(1).type==token.OP_DIV or
+                self.peek(0).type==token.DOT and
+                self.peek(1).type==token.DOT and
+                self.peek(2).type==token.OP_DIV):
+            return self.expression_stmt()
         raise(Exception("unknown statement found: {}".format(str(self.peek()))))
 
     def parse_function_definition(self):
@@ -254,6 +264,25 @@ class Parser:
                 return ast.Variable(self.peek(-1).lexeme)
             name = self.peek(-1).lexeme
             args = self.syscall_arguments(name)
+            return ast.SysCall(args)
+        # Special case: Syscall with './foo'
+        if self.peek(0).type==token.DOT and self.peek(1).type==token.OP_DIV:
+            # The DOT token could be preceded by whitespace which would cause
+            # syscall_arguments() to have "" as the first argument of the
+            # syscall if called without the following line and with
+            # syscall_arguments("") instead.
+            dot = self.next()
+            args = self.syscall_arguments(".")
+            return ast.SysCall(args)
+        # Special case: Syscall with '../foo'
+        if self.peek(0).type==token.DOT and self.peek(1).type==token.DOT and self.peek(2).type==token.OP_DIV:
+            firstdot = self.next()
+            args = self.syscall_arguments(".")
+            return ast.SysCall(args)
+        # Special case: Syscall with absolute path like '/foo/bar'
+        if self.peek(0).type==token.OP_DIV and self.peek(1).type==token.IDENTIFIER:
+            slash = self.next()
+            args = self.syscall_arguments("/")
             return ast.SysCall(args)
         if self.match(token.LPAREN):
             exp = self.expression()
