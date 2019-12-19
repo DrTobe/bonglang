@@ -128,11 +128,13 @@ class Eval:
                 raise Exception("can only call functions")
             if len(function.parameters) != len(node.args):
                 raise Exception("wrong number of arguments")
+            args = []
+            for a in node.args:
+                args.append(self.evaluate(a))
             self.push_new_env()
             for i, param in enumerate(function.parameters):
                 self.environment.register(param)
-                arg_value = self.evaluate(node.args[i])
-                self.environment.set(param, arg_value)
+                self.environment.set(param, args[i])
             result = self.evaluate(function.body)
             self.pop_env()
             if isinstance(result, objects.ReturnValue):

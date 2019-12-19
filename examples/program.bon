@@ -6,8 +6,15 @@ func faculty(n) {
     if n <= 1 {
         return 1
     }
-    let predN = n-1
-    return n * faculty(predN)
+    return n * faculty(n-1)
+}
+
+func fibonacci(n) {
+    if n <= 1 {
+        return n
+    }
+
+    return fibonacci(n-1) + fibonacci(n-2)
 }
 
 print("add(13, 37)")
@@ -15,5 +22,11 @@ print(add(13, 37))
 let i = 0
 while i <= 5 {
     print(faculty(i))
+    i = i + 1
+}
+
+i = 0
+while i <= 10 {
+    print(fibonacci(i))
     i = i + 1
 }
