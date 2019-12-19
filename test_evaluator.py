@@ -14,6 +14,8 @@ class TestEvaluator(unittest.TestCase):
                 "func f() { return 1337 } f()", 1337,
                 "func add(a, b) { return a + b } add(21, 21)", 42,
                 "func calc(a, b, c) { return a + b * c } calc(3, 5, 7)", 38,
+                # TODO make this work
+                #"func faculty(n) { if n <= 1 { return 1 } else { return n * faculty(n-1) } } faculty(5)", 120,
                 ]
         test_eval_list(self, tests)
 
@@ -22,6 +24,7 @@ class TestEvaluator(unittest.TestCase):
                 "return\n", objects.ReturnValue(),
                 "return 1337", objects.ReturnValue(1337),
                 "return 21 * 2", objects.ReturnValue(42),
+                "return 21 * 2; 13.37", objects.ReturnValue(42),
                 ]
         test_eval_list(self, tests)
 
@@ -106,6 +109,7 @@ class TestEvaluator(unittest.TestCase):
                 "27%5", 2,
                 "(27%5)^2", 4,
                 "-2 * 3", -6,
+                "13.37 + 4.2", 17.57,
                 "!true", False,
                 "let a = 42 a = 1337 a", 1337,
                 "let a = 1337 let b = 42 a = b = 15 a", 15,

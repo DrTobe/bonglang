@@ -43,7 +43,7 @@ class Parser:
             return self.while_stmt()
         if self.peek().type == token.LBRACE:
             return self.block_stmt()
-        if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
+        if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.FLOAT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
             return self.expression_stmt()
         # Special cases: Syscalls in current directory like './foo' or with
         # absolute path like '/foo/bar'
@@ -84,6 +84,7 @@ class Parser:
         body = self.block_stmt()
         self.symbol_table = original_symbol_table
         func = ast.FunctionDefinition(name, parameters, body, func_symbol_table)
+        self.functions.register(name)
         self.functions.set(name, func)
         original_symbol_table.register(name)
         # todo, set type to function in symbol table
@@ -272,6 +273,8 @@ class Parser:
     def primary(self):
         if self.match(token.INT_VALUE):
             return ast.Integer(int(self.peek(-1).lexeme))
+        if self.match(token.FLOAT_VALUE):
+            return ast.Float(float(self.peek(-1).lexeme))
         if self.match(token.STRING):
             return ast.String(str(self.peek(-1).lexeme))
         if self.match(token.BOOL_VALUE):

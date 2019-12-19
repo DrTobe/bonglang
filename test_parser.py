@@ -28,6 +28,7 @@ class TestParser(unittest.TestCase):
         testData = [
                 TestData("someFunc()", "{\nsomeFunc()\n}"),
                 TestData("add(1, 2)", "{\nadd(1, 2)\n}"),
+                TestData("add(1 + 2, 2*3+4)", "{\nadd((1+2), ((2*3)+4))\n}"),
                 ]
         test_strings(self, testData)
 
@@ -97,6 +98,8 @@ class TestParser(unittest.TestCase):
                 TestData("4 * 2 + 3", "{\n((4*2)+3)\n}"),
                 TestData("1 + 2 ^ 3", "{\n(1+(2^3))\n}"),
                 TestData("1 ^ 2 ^ 3", "{\n(1^(2^3))\n}"),
+                TestData("13.37 + 4.2", "{\n(13.37+4.2)\n}"),
+                TestData("add(1, 2) * 2", "{\n(add(1, 2)*2)\n}"),
                 TestData("true || false && 1 < 2 + 3 * 3 ^ 5" , "{\n(true||(false&&(1<(2+(3*(3^5))))))\n}"),
                 TestData("let a = 1337\n a = 42", "{\nlet a = 1337\n(a=42)\n}"),
                 TestData("""

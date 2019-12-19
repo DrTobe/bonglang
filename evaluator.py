@@ -21,19 +21,23 @@ class Eval:
             result = None
             for stmt in node.stmts:
                 result = self.evaluate(stmt)
+                if isinstance(result, objects.ReturnValue):
+                    break
             self.pop_env()
             return result
         if isinstance(node, ast.IfElseStatement):
             cond = node.cond
-            if self.evaluate(cond):
+            if isTruthy(self.evaluate(cond)):
                 return self.evaluate(node.t)
             elif node.e != None:
                 return self.evaluate(node.e)
             return None
         if isinstance(node, ast.WhileStatement):
             ret = None
-            while self.evaluate(node.cond):
+            while isTruthy(self.evaluate(node.cond)):
                 ret = self.evaluate(node.t)
+                if isinstance(ret, objects.ReturnValue):
+                    break
             return ret
         if isinstance(node, ast.Return):
             if node.result == None:
@@ -90,6 +94,8 @@ class Eval:
             raise Exception("unrecognised unary operator: " + str(node.op))
         elif isinstance(node, ast.Integer):
             return node.value
+        elif isinstance(node, ast.Float):
+            return node.value
         elif isinstance(node, ast.String):
             return node.value
         elif isinstance(node, ast.Bool):
@@ -124,7 +130,9 @@ class Eval:
                 raise Exception("wrong number of arguments")
             self.push_new_env()
             for i, param in enumerate(function.parameters):
-                self.environment.set(param, self.evaluate(node.args[i]))
+                self.environment.register(param)
+                arg_value = self.evaluate(node.args[i])
+                self.environment.set(param, arg_value)
             result = self.evaluate(function.body)
             self.pop_env()
             if isinstance(result, objects.ReturnValue):
@@ -135,6 +143,7 @@ class Eval:
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
+            self.environment.register(node.name)
             self.environment.set(node.name, self.evaluate(node.expr))
         else:
             raise Exception("unknown ast node")
@@ -193,3 +202,8 @@ class Eval:
 
     def pop_env(self):
         self.environment = self.environment.parent
+
+def isTruthy(value):
+    if value == None or value == False:
+        return False
+    return True

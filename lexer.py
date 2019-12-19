@@ -101,6 +101,11 @@ class Lexer:
             lex = c
             while is_number(self.peek()):
                 lex += self.next()
+            if self.match(".") and is_number(self.peek()):
+                lex += "."
+                while is_number(self.peek()):
+                    lex += self.next()
+                return self.create_token(token.FLOAT_VALUE, lex)
             return self.create_token(token.INT_VALUE, lex)
         if is_alpha(c):
             lex = c

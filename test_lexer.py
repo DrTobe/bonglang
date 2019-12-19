@@ -80,6 +80,13 @@ class TestLexer(unittest.TestCase):
         test_token_types(self, sourcecode, expectedTypes)
         test_lexemes(self, sourcecode, expectedValues)
 
+    def test_float_literals(self):
+        sourcecode = " 1.0 2.2 3.1415 123.456 13.37 0.42 "
+        expectedValues = [1.0, 2.2, 3.1415, 123.456, 13.37, 0.42]
+        expectedTypes = [FLOAT_VALUE]*len(expectedValues)
+        test_token_types(self, sourcecode, expectedTypes)
+        test_lexemes(self, sourcecode, expectedValues)
+
     def test_bool_literals(self):
         sourcecode = "true false true true false"
         expectedValues = ["true", "false", "true", "true", "false"]

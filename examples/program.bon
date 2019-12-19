@@ -1,3 +1,19 @@
-let a = 1337
-let b = 42
-print a + b
+func add(a, b) {
+    return a + b
+}
+
+func faculty(n) {
+    if n <= 1 {
+        return 1
+    }
+    let predN = n-1
+    return n * faculty(predN)
+}
+
+print("add(13, 37)")
+print(add(13, 37))
+let i = 0
+while i <= 5 {
+    print(faculty(i))
+    i = i + 1
+}

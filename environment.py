@@ -3,8 +3,19 @@ class Environment:
         self.parent = parent
         self.values = {}
 
+    def register(self, name):
+        if name in self.values:
+            raise Exception("cannot redefine " + name)
+        self.values[name] = None
+
     def set(self, name, value):
-        self.values[name] = value
+        if name in self.values:
+            self.values[name] = value
+            return
+        if self.parent != None:
+            self.parent.set(name, value)
+            return
+        raise Exception("Cannot set variable called " + name)
 
     def get(self, name):
         if name in self.values:
@@ -24,4 +35,5 @@ class Environment:
         for d in otherEnv.values:
             key = d
             value = otherEnv.get(d)
+            self.register(key)
             self.set(key, value)
