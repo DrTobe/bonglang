@@ -4,6 +4,7 @@ import ast
 import os
 import subprocess
 from environment import Environment
+import objects
 
 class Eval:
     def __init__(self, printfunc=print):
@@ -34,11 +35,16 @@ class Eval:
             while self.evaluate(node.cond):
                 ret = self.evaluate(node.t)
             return ret
+        if isinstance(node, ast.Return):
+            if node.result == None:
+                return objects.ReturnValue()
+            result = self.evaluate(node.result)
+            return objects.ReturnValue(result)
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
                 if not isinstance(node.lhs, ast.Variable):
-                    raise Exception("Fucker")
+                    raise Exception("Can only assign to variable")
                 name = node.lhs.name
                 value = self.evaluate(node.rhs)
                 self.environment.set(name, value)
@@ -115,7 +121,10 @@ class Eval:
             if not isinstance(function, ast.FunctionDefinition):
                 raise Exception("can only call functions")
             # set arguments to parameters
-            return self.evaluate(function.body)
+            result = self.evaluate(function.body)
+            if isinstance(result, objects.ReturnValue):
+                return result.value
+            return result
         elif isinstance(node, ast.SysCall):
             return self.callprogram(node, stdin, pipe_output)
         elif isinstance(node, ast.Print):

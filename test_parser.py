@@ -16,6 +16,14 @@ class TestParser(unittest.TestCase):
                 ]
         test_strings(self, testData)
 
+    def test_return(self):
+        testData = [
+                TestData("return\n", "{\nreturn\n}"),
+                TestData("return 1337", "{\nreturn 1337\n}"),
+                TestData("return 42 / 2", "{\nreturn (42/2)\n}"),
+                ]
+        test_strings(self, testData)
+
     def test_functioncall(self):
         testData = [
                 TestData("someFunc()", "{\nsomeFunc()\n}"),

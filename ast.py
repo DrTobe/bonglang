@@ -129,3 +129,15 @@ class FunctionCall:
         result += ", ".join(args)
         result += ")"
         return result
+
+class Return:
+    def __init__(self, result=None):
+        self.result = result
+    def __str__(self):
+        result = "return"
+        if self.result != None:
+            result += " "
+            result += str(self.result)
+        return result
+
+

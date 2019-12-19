@@ -37,6 +37,8 @@ class Parser:
             return self.let_stmt()
         if self.peek().type == token.IF:
             return self.if_stmt()
+        if self.peek().type == token.RETURN:
+            return self.return_stmt()
         if self.peek().type == token.WHILE:
             return self.while_stmt()
         if self.peek().type == token.LBRACE:
@@ -87,6 +89,15 @@ class Parser:
 
     def parse_parameters(self):
         return []
+
+    def return_stmt(self):
+        if not self.match(token.RETURN):
+            raise Exception("expected return statement")
+        if self.match(token.SEMICOLON):
+            return ast.Return()
+        expr = self.expression()
+        self.match(token.SEMICOLON)
+        return ast.Return(expr)
 
     def expression_stmt(self):
         expr = self.expression()

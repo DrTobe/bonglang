@@ -4,15 +4,26 @@ import unittest
 from lexer import Lexer
 from parser import Parser
 from evaluator import Eval
+import objects
 
 class TestEvaluator(unittest.TestCase):
     def test_function(self):
         tests = [
                 "func f() {}", None,
                 "func f() {} f()", None,
+                "func f() { return 1337 } f()", 1337,
                 ]
         test_eval_list(self, tests)
 
+    def test_return(self):
+        tests = [
+                "return\n", objects.ReturnValue(),
+                "return 1337", objects.ReturnValue(1337),
+                "return 21 * 2", objects.ReturnValue(42),
+                ]
+        test_eval_list(self, tests)
+
+    @unittest.skip("this produces a warning at moment")
     def test_syscall(self):
         # TODO output should be redirected somewhere to reduce testing output
         # For now, I 'ls examples' because there is not too many examples yet
@@ -24,6 +35,7 @@ class TestEvaluator(unittest.TestCase):
                 ]
         test_eval_list(self, tests)
 
+    @unittest.skip("this produces a warning at moment")
     def test_pipe(self):
         # TODO Testing piped subprocesses produced a warning:
         # /usr/lib/python3.8/subprocess.py:942: ResourceWarning: subprocess 1745 is still running
