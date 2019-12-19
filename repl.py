@@ -96,7 +96,7 @@ def main():
             # tab-completion as well, of course.
             p = Parser(l, symtable)
             program = p.compile()
-            evaluator.evaluate(program)
+            print(str(evaluator.evaluate(program)))
         except Exception as e:
             print("you fucked up: " + str(e)) 
             print(traceback.format_exc())
