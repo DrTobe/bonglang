@@ -12,6 +12,8 @@ class TestEvaluator(unittest.TestCase):
                 "func f() {}", None,
                 "func f() {} f()", None,
                 "func f() { return 1337 } f()", 1337,
+                "func add(a, b) { return a + b } add(21, 21)", 42,
+                "func calc(a, b, c) { return a + b * c } calc(3, 5, 7)", 38,
                 ]
         test_eval_list(self, tests)
 

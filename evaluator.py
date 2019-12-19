@@ -120,8 +120,13 @@ class Eval:
             function = self.functions.get(node.name)
             if not isinstance(function, ast.FunctionDefinition):
                 raise Exception("can only call functions")
-            # set arguments to parameters
+            if len(function.parameters) != len(node.args):
+                raise Exception("wrong number of arguments")
+            self.push_new_env()
+            for i, param in enumerate(function.parameters):
+                self.environment.set(param, self.evaluate(node.args[i]))
             result = self.evaluate(function.body)
+            self.pop_env()
             if isinstance(result, objects.ReturnValue):
                 return result.value
             return result

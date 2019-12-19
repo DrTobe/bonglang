@@ -67,7 +67,9 @@ class Parser:
         name = self.peek(-1).lexeme
         if not self.match(token.LPAREN):
             raise Exception("expected ( to start the parameter list")
+
         parameters = self.parse_parameters()
+
         if not self.match(token.RPAREN):
             raise Exception("expected ) to end the parameter list")
 
@@ -88,7 +90,17 @@ class Parser:
         return None # function definition is in the symbol table, so we don't need to return it
 
     def parse_parameters(self):
-        return []
+        params = []
+        p = self.peek()
+        if not self.match(token.IDENTIFIER):
+            return params
+        params.append(p.lexeme)
+        while self.match(token.COMMA):
+            p = self.peek()
+            if not self.match(token.IDENTIFIER):
+                raise Exception("expected identifier as parameter")
+            params.append(p.lexeme)
+        return params
 
     def return_stmt(self):
         if not self.match(token.RETURN):
@@ -303,7 +315,13 @@ class Parser:
         raise Exception("integer or () expected")
 
     def parse_arguments(self):
-        return []
+        args = []
+        if self.peek().type == token.RPAREN:
+            return args
+        args.append(self.expression())
+        while self.match(token.COMMA):
+            args.append(self.expression())
+        return args
 
     def syscall_arguments(self, name):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP

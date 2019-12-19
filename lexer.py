@@ -45,6 +45,8 @@ class Lexer:
                 return self.get_token()
         if c == ";":
             return self.create_token(token.SEMICOLON)
+        if c == ",":
+            return self.create_token(token.COMMA)
         if c == ".":
             return self.create_token(token.DOT)
         if c == "+":

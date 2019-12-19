@@ -125,7 +125,7 @@ class FunctionCall:
         result = self.name + "("
         args = []
         for a in self.args:
-            args.append(str(s))
+            args.append(str(a))
         result += ", ".join(args)
         result += ")"
         return result

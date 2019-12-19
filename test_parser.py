@@ -27,6 +27,7 @@ class TestParser(unittest.TestCase):
     def test_functioncall(self):
         testData = [
                 TestData("someFunc()", "{\nsomeFunc()\n}"),
+                TestData("add(1, 2)", "{\nadd(1, 2)\n}"),
                 ]
         test_strings(self, testData)
 
@@ -50,6 +51,7 @@ class TestParser(unittest.TestCase):
     def test_function_definition(self):
         testData = [
                 TestData("func someFunc() { let a = 1337 }", "someFunc"),
+                TestData("func add(a, b) { return a + b }", "add"),
                 ]
         for td in testData:
             program = translate(td.sourcecode)

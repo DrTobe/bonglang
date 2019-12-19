@@ -107,6 +107,11 @@ class TestLexer(unittest.TestCase):
         expectedTypes = [STRING]
         test_token_types(self, sourcecode, expectedTypes)
 
+    def test_other_tokens(self):
+        sourcecode = ","
+        expectedTypes = [COMMA]
+        test_token_types(self, sourcecode, expectedTypes)
+
 
 
 def test_token_types(test_class, sourcecode, expectedTypes):
