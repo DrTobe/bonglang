@@ -84,8 +84,9 @@ def main():
             username = run("whoami")
             hostname = run("hostname")
             directory = run("pwd").split("/")[-1]
-            char = ">" if username!="root" else "#>"
-            repl_line = "[{}@{} {}]{} ".format(username, hostname, directory, char)
+            char = ">" if code == "" else "."
+            prompt = 2*char if username!="root" else "#"+char
+            repl_line = "[{}@{} {}]{} ".format(username, hostname, directory, prompt)
             inp = input(repl_line)
             if inp == "q":
                 break
@@ -107,7 +108,7 @@ def main():
         except Exception as e:
             print("you fucked up: " + str(e)) 
             print(traceback.format_exc())
-            p = Parser(l, symtable)
+            code = ""
 
 if __name__ == "__main__":
     main()
