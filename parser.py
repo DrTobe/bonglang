@@ -22,8 +22,7 @@ class Parser:
             stmt = self.top_level_stmt()
             if stmt != None:
                 statements.append(stmt)
-        body = ast.Block(statements, self.symbol_table)
-        return ast.Program(body, self.functions)
+        return ast.Program(statements, self.functions)
 
     def top_level_stmt(self):
         if self.peek().type == token.FUNC:

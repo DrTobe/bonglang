@@ -15,7 +15,10 @@ class Eval:
     def evaluate(self, node, stdin=None, pipe_output=False):
         if isinstance(node, ast.Program):
             self.functions.add_definitions(node.functions)
-            return self.evaluate(node.body)
+            res = None
+            for stmt in node.statements:
+                res = self.evaluate(stmt)
+            return res
         if isinstance(node, ast.Block):
             self.push_new_env()
             result = None

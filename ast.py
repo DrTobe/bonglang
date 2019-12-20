@@ -1,8 +1,8 @@
 import token_def as token
 
 class Program:
-    def __init__(self, body, functions):
-        self.body = body
+    def __init__(self, statements, functions):
+        self.statements = statements
         self.functions = functions
     def __str__(self):
         return str(self.body)
