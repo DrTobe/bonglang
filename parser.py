@@ -91,11 +91,13 @@ class Parser:
 
     def parse_parameters(self):
         params = []
+        self.check_eof("Parameter list expected")
         p = self.peek()
         if not self.match(token.IDENTIFIER):
             return params
         params.append(p.lexeme)
         while self.match(token.COMMA):
+            self.check_eof("Another parameter expected")
             p = self.peek()
             if not self.match(token.IDENTIFIER):
                 raise Exception("expected identifier as parameter")
@@ -158,13 +160,16 @@ class Parser:
         return res
 
     def block_stmt(self):
+        self.check_eof("expected { for block statement")
         if not self.match(token.LBRACE):
             raise(Exception("expected { for block statement"))
         block_symbol_table = symbol_table.SymbolTable(self.symbol_table)
         self.symbol_table = block_symbol_table
         statements = []
         while self.peek().type != token.RBRACE:
+            self.check_eof("expected statement for block body")
             statements.append(self.stmt())
+        self.check_eof("missing } for block statement")
         if not self.match(token.RBRACE):
             raise(Exception("missing } for block statement"))
         self.symbol_table = self.symbol_table.parent
@@ -348,6 +353,14 @@ class Parser:
         self.match(token.SEMICOLON) # match away a possible semicolon
         return arguments
 
+    # The check_eof() method is used whenever we could expect the (current)
+    # input to end before (complete) parsing was successful which happens
+    # in the REPL with multiline input. Then, an UnexpectedEof Exception is
+    # raised which can be caught by the REPL to retry with more input.
+    def check_eof(self, msg):
+        if self.peek().type == token.EOF:
+            raise UnexpectedEof(msg)
+
     #
     # Token access methods
     # This is implemented with a list of tokens for the future / look ahead
@@ -391,3 +404,9 @@ class Parser:
                 self.next()
                 return True
         return False
+
+# Exception that tells us that EOF was found in a situation where we did
+# not expect it. This is used advantageous for multi-line statements
+# in the REPL.
+class UnexpectedEof(Exception):
+    pass

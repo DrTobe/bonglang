@@ -1,4 +1,4 @@
-from parser import Parser
+from parser import Parser, UnexpectedEof
 from lexer import Lexer
 from evaluator import Eval
 import traceback
@@ -77,6 +77,7 @@ def main():
     evaluator = Eval()
     readline.set_completer(tab_completer)
     readline.parse_and_bind("tab: complete")
+    code = ""
     while True:
         try:
             # towards a nicer repl-experience
@@ -85,20 +86,24 @@ def main():
             directory = run("pwd").split("/")[-1]
             char = ">" if username!="root" else "#>"
             repl_line = "[{}@{} {}]{} ".format(username, hostname, directory, char)
-            code = input(repl_line)
-            if code == "q":
+            inp = input(repl_line)
+            if inp == "q":
                 break
-            code += "\n"
+            code += inp + "\n"
             l = Lexer(code)
             # TODO I think we need to return the current symtable / scope from
             # p.compile() or evakuator.evakuate() in the future so that we
             # use the correct one after having opened a new scope. And for
             # tab-completion as well, of course.
             p = Parser(l, symtable)
-            program = p.compile()
-            evaluated = evaluator.evaluate(program)
-            if evaluated != None:
-                print(str(evaluated))
+            try:
+                program = p.compile()
+                evaluated = evaluator.evaluate(program)
+                code = ""
+                if evaluated != None:
+                    print(str(evaluated))
+            except UnexpectedEof as e:
+                pass
         except Exception as e:
             print("you fucked up: " + str(e)) 
             print(traceback.format_exc())
