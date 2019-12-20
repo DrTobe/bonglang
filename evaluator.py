@@ -50,12 +50,22 @@ class Eval:
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
-                if not isinstance(node.lhs, ast.Variable):
-                    raise Exception("Can only assign to variable")
-                name = node.lhs.name
-                value = self.evaluate(node.rhs)
-                self.environment.set(name, value)
-                return value
+                if isinstance(node.lhs, ast.Variable):
+                    name = node.lhs.name
+                    value = self.evaluate(node.rhs)
+                    self.environment.set(name, value)
+                    return value
+                if isinstance(node.lhs, ast.IndexAccess):
+                    # 1. Evaluate value (rhs)
+                    value = self.evaluate(node.rhs)
+                    # 2. Evaluate index which is on the lhs of the assignment
+                    index_access = node.lhs
+                    if not isinstance(index_access.lhs, ast.Variable):
+                        raise(Exception("Can only index variables"))
+                    name = index_access.lhs.name
+                    index = self.evaluate(index_access.rhs)
+                    self.environment.get(name)[index] = value
+                raise Exception("Can only assign to variable or indexed variable")
             lhs = self.evaluate(node.lhs)
             rhs = self.evaluate(node.rhs)
             if op == "+":
@@ -125,6 +135,9 @@ class Eval:
                 return rhs
         elif isinstance(node, ast.Variable):
             return self.environment.get(node.name)
+        elif isinstance(node, ast.IndexAccess):
+            index = self.evaluate(node.rhs)
+            return self.environment.get(node.lhs.name)[index]
         if isinstance(node, ast.FunctionCall):
             function = self.functions.get(node.name)
             if not isinstance(function, ast.FunctionDefinition):

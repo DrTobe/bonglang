@@ -268,10 +268,20 @@ class Parser:
         return self.exponentiation()
 
     def exponentiation(self):
-        lhs = self.primary()
+        lhs = self.index_access()
         if self.match(token.OP_POW):
             rhs = self.exponentiation()
             lhs = ast.BinOp(lhs, "^", rhs)
+        return lhs
+
+    def index_access(self):
+        lhs = self.primary()
+        if self.match(token.LBRACKET):
+            self.check_eof("missing expression for indexing")
+            rhs = self.expression()
+            if not self.match(token.RBRACKET):
+                raise(Exception("missing ] for indexing"))
+            lhs = ast.IndexAccess(lhs, rhs)
         return lhs
 
     def primary(self):

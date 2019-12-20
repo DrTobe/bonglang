@@ -96,6 +96,10 @@ def main():
             # p.compile() or evakuator.evakuate() in the future so that we
             # use the correct one after having opened a new scope. And for
             # tab-completion as well, of course.
+            # Okay, scopes/blocks have to be parsed/evaluated as a whole anyways
+            # so after Parser.compile() the result will always be the top level
+            # symbol table / environment.
+            # For tab-completion, do we want to support local/scoped variables?
             p = Parser(l, symtable)
             try:
                 program = p.compile()
@@ -103,6 +107,8 @@ def main():
                 code = ""
                 if evaluated != None:
                     print(str(evaluated))
+                # Debugging output
+                #print(str(evaluator.environment))
             except UnexpectedEof as e:
                 pass
         except Exception as e:
