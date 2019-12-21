@@ -1,8 +1,11 @@
 from parser import Parser, UnexpectedEof
 from lexer import Lexer
 from evaluator import Eval
-import traceback
 from symbol_table import SymbolTable
+import objects
+
+import sys
+import traceback
 
 # now, we're going shell
 import subprocess
@@ -107,6 +110,11 @@ def main():
                 code = ""
                 if evaluated != None:
                     print(str(evaluated))
+                    if isinstance(evaluated, objects.ReturnValue):
+                        exitcode = 0
+                        if evaluated.value != None:
+                            exitcode = evaluated.value
+                        sys.exit(exitcode)
                 # Debugging output
                 #print(str(evaluator.environment))
             except UnexpectedEof as e:

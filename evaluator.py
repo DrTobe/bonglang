@@ -18,6 +18,8 @@ class Eval:
             res = None
             for stmt in node.statements:
                 res = self.evaluate(stmt)
+                if isinstance(res, objects.ReturnValue):
+                    break
             return res
         if isinstance(node, ast.Block):
             self.push_new_env()

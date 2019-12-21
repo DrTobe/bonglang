@@ -5,7 +5,10 @@ class Program:
         self.statements = statements
         self.functions = functions
     def __str__(self):
-        return str(self.body)
+        result = []
+        for stmt in self.statements:
+            result.append(str(stmt))
+        return "{\n" + "\n".join(result) + "\n}"
 
 class Block:
     def __init__(self, stmts, symbol_table):
