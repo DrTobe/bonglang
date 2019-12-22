@@ -116,17 +116,8 @@ class Eval:
         elif isinstance(node, ast.Bool):
             return node.value
         elif isinstance(node, ast.Pipe):
-            # TODO Currently, it seems to be working, so I am just super happy.
-            # But it seems to me that all these different cases can be mostly
-            # unified by just using the proper options.
-            if stdin == None: # default case: leftmost syscall
-                lhs = self.evaluate(node.lhs, pipe_output=True)
-            else:
-                lhs = self.evaluate(node.lhs, stdin=stdin, pipe_output=True)
-            if not pipe_output: # default (easiest) case: rightmost syscall
-                rhs = self.evaluate(node.rhs, stdin=lhs.stdout)
-            else:
-                rhs = self.evaluate(node.rhs, stdin=lhs.stdout, pipe_output=True)
+            lhs = self.evaluate(node.lhs, stdin=stdin, pipe_output=True)
+            rhs = self.evaluate(node.rhs, stdin=lhs.stdout, pipe_output=pipe_output)
             lhs.stdout.close() # taken from python subprocess documentation
             if not pipe_output:
                 rhs.communicate() # TODO is this necessary when the output isn't piped?
@@ -188,11 +179,11 @@ class Eval:
             else:
                 filepath = program.args[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
-                # TODO See above: I think that maybe, these cases can be
-                # unified.
+                # Simple syscall
                 if stdin == None and not pipe_output:
                     compl = subprocess.run(program.args)
                     return compl.returncode
+                # Piped syscall
                 else:
                     stdout = subprocess.PIPE if pipe_output else None
                     return subprocess.Popen(program.args, stdin=stdin, stdout=stdout)
