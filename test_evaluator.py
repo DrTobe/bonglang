@@ -73,6 +73,9 @@ class TestEvaluator(unittest.TestCase):
                 'let a = "foo" a | grep bar', 1,
                 'func a() { return "foo" } a() | grep foo | /usr/bin/true', 0,
                 'func a() { return "foo" } a() | grep bar', 1,
+                'let a = 0; echo "foo" | a; a', "foo\n",
+                'let a=0; let b=0; echo "foo\nbar" | a | grep foo | b; a', "foo\nbar\n",
+                'let a=0; let b=0; echo "foo\nbar" | a | grep foo | b; b', "foo\n",
                 ]
         test_eval_list(self, tests)
 

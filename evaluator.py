@@ -59,22 +59,7 @@ class Eval:
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
-                if isinstance(node.lhs, ast.Variable):
-                    name = node.lhs.name
-                    value = self.evaluate(node.rhs)
-                    self.environment.set(name, value)
-                    return value
-                if isinstance(node.lhs, ast.IndexAccess):
-                    # 1. Evaluate value (rhs)
-                    value = self.evaluate(node.rhs)
-                    # 2. Evaluate index which is on the lhs of the assignment
-                    index_access = node.lhs
-                    if not isinstance(index_access.lhs, ast.Variable):
-                        raise(Exception("Can only index variables"))
-                    name = index_access.lhs.name
-                    index = self.evaluate(index_access.rhs)
-                    self.environment.get(name)[index] = value
-                raise Exception("Can only assign to variable or indexed variable")
+                return self.assign(node.lhs, node.rhs)
             lhs = self.evaluate(node.lhs)
             rhs = self.evaluate(node.rhs)
             if op == "+":
@@ -130,8 +115,12 @@ class Eval:
             lhs = self.evaluate(node.lhs, stdin=stdin, stdout=pipe)
             return self.evaluate(node.rhs, stdin=lhs, stdout=stdout)
         elif isinstance(node, ast.Variable):
+            if stdin != None: # oops, piped input :)
+                return self.assign(node, stdin)
             return self.environment.get(node.name)
         elif isinstance(node, ast.IndexAccess):
+            if stdin != None:
+                return self.assign(node, stdin)
             index = self.evaluate(node.rhs)
             return self.environment.get(node.lhs.name)[index]
         if isinstance(node, ast.FunctionCall):
@@ -161,6 +150,46 @@ class Eval:
             self.environment.set(node.name, self.evaluate(node.expr))
         else:
             raise Exception("unknown ast node")
+
+    def assign(self, lhs, rhs):
+        # In typical assignments, the rhs is evaluated first (this distinction
+        # is especially necessary if lhs and rhs contain expressions with
+        # possible side-effects and the lhs contains an IndexAccess)
+        #
+        # 1. rhs evaluation: The rhs can be an expression or it can be the
+        # output value of a pipeline.
+        # Therefore, we need to check vs the list of python types that an
+        # Eval.evaluate() call could return.
+        # TODO I feel that there could be a nicer way to do this, but
+        # I don't see it yet.
+        if (isinstance(rhs, bytes) or
+                isinstance(rhs, bool) or
+                isinstance(rhs, int) or
+                isinstance(rhs, str)):
+            # TODO The following distinction is just made so that we can work
+            # nicely with syscall output. Done properly, the value would just
+            # by a bytestream that has to be decoded by the user.
+            if isinstance(rhs, bytes):
+                value = rhs.decode("utf-8")
+            else:
+                value = rhs
+        else:
+            value = self.evaluate(rhs)
+        # 2. lhs evaluation: The lhs can be a variable assignment or an
+        # index access which is just handled differently here.
+        if isinstance(lhs, ast.Variable):
+            name = lhs.name
+            self.environment.set(name, value)
+            return value
+        if isinstance(node.lhs, ast.IndexAccess):
+            index_access = node.lhs
+            if not isinstance(index_access.lhs, ast.Variable):
+                raise(Exception("Can only index variables"))
+            name = index_access.lhs.name
+            index = self.evaluate(index_access.rhs)
+            self.environment.get(name)[index] = value
+            return value
+        raise Exception("Can only assign to variable or indexed variable")
 
     def callprogram(self, program, stdin, stdout):
         if program.args[0] == "cd":
@@ -210,7 +239,15 @@ class Eval:
                     proc = subprocess.Popen(
                             program.args, stdin=stdin_arg, stdout=stdout_arg)
                     if case_c:
-                        proc.stdin.write(str(stdin).encode("utf-8"))
+                        # Prevent possible bytestreams from being interpreted
+                        # as strings. Currently 2019-12-22, this is not strictly
+                        # required because we don't have bytestreams yet and
+                        # everything is nicely decoded to strings but in the
+                        # future, we have to do this here!
+                        if type(stdin) == bytes:
+                            proc.stdin.write(stdin)
+                        else:
+                            proc.stdin.write(str(stdin).encode("utf-8"))
                     # Now, after having created this process, we can run the
                     # stdout.close() on the previous process (if there was one)
                     # stdout of the previous is stdin here.
