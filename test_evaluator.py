@@ -84,6 +84,8 @@ class TestEvaluator(unittest.TestCase):
                 'let yes = "/usr/bin/true"; call(yes)', 0,
                 'let no = "/usr/bin/false"; call(no)', 1,
                 'call("ls") | call("grep", "foobar")', 1,
+                'len("foo")', 3,
+                'let a = "foo"; len(a)', 3,
                 ]
         test_eval_list(self, tests)
 

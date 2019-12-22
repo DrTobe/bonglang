@@ -121,6 +121,7 @@ def main():
                             exitcode = evaluated.value
                         sys.exit(exitcode)
                 # Debugging output
+                #print(str(symtable))
                 #print(str(evaluator.environment))
             except UnexpectedEof as e:
                 pass

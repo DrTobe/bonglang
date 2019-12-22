@@ -2,6 +2,7 @@ import token_def as token
 import ast
 import symbol_table
 import environment
+import evaluator # Required for access to the builtin variables
 
 class Parser:
     def __init__(self, lexer, symtable=None, functions=None):
@@ -11,6 +12,9 @@ class Parser:
             self.symbol_table = symbol_table.SymbolTable()
         else:
             self.symbol_table = symtable
+        for key in evaluator.Eval.BUILTIN_ENVIRONMENT:
+            if key not in self.symbol_table.names:
+                self.symbol_table.register(key)
         if functions == None:
             self.functions = environment.Environment()
         else:

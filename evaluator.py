@@ -7,18 +7,28 @@ import os
 import subprocess
 import _io
 
+# For cmdline arguments
+import sys
+
 class Eval:
     # Poor man's python enum :)
     # Determines what a syscall should return
     EXITCODE = 0
     PIPE = 1
     VALUE = 2
+    # Defined here so that it can be used by the parser
+    BUILTIN_ENVIRONMENT = {
+                "sys_argv": sys.argv
+            }
     def __init__(self, printfunc=print):
-        self.environment = Environment()
         self.printfunc = printfunc
+        self.environment = Environment()
+        for key, value in Eval.BUILTIN_ENVIRONMENT.items():
+            self.environment.reg_and_set(key, value)
         self.functions = Environment()
         self.builtin_functions = {
-                "call": self.callprogram
+                "call": self.callprogram,
+                "len": self.builtin_func_len,
                 }
 
     # Eval.EXITCODE -> "name 'Eval' is not defined" ... But why does it work?
@@ -208,6 +218,9 @@ class Eval:
         raise Exception("Can only assign to variable or indexed variable")
 
     def callprogram(self, program, stdin, stdout):
+        # TODO We pass a whole ast.SysCall object to callprogram, only the args
+        # list would be enough. Should we change that? This would simplify this
+        # method itself and calling builtin functions.
         if program.args[0] == "cd":
             if stdin != None or stdout!=Eval.EXITCODE:
                 print("bong: cd: can not be piped")
@@ -295,6 +308,9 @@ class Eval:
         except Exception as e:
             print("bong: cd: {}".format(str(e)))
             return 1
+
+    def builtin_func_len(self, val, stdin, stdout):
+        return len(val.args[0])
 
     def push_env(self, new_env):
         current_env = self.environment
