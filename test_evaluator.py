@@ -79,6 +79,14 @@ class TestEvaluator(unittest.TestCase):
                 ]
         test_eval_list(self, tests)
 
+    def test_builtin_functions(self):
+        tests = [
+                'let yes = "/usr/bin/true"; call(yes)', 0,
+                'let no = "/usr/bin/false"; call(no)', 1,
+                'call("ls") | call("grep", "foobar")', 1,
+                ]
+        test_eval_list(self, tests)
+
     def test_let(self):
         tests = [
                 "let a = 1337 a", 1337,

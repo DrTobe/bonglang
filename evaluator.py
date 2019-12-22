@@ -17,11 +17,17 @@ class Eval:
         self.environment = Environment()
         self.printfunc = printfunc
         self.functions = Environment()
+        self.builtin_functions = {
+                "call": self.callprogram
+                }
 
     # Eval.EXITCODE -> "name 'Eval' is not defined" ... But why does it work?
     def evaluate(self, node, stdin=None, stdout=EXITCODE):
         if isinstance(node, ast.Program):
-            self.functions.add_definitions(node.functions)
+            for key, value in node.functions.values.items():
+                if key in self.builtin_functions:
+                    raise(Exception("Cannot overwrite builtin "+key))
+                self.functions.reg_and_set(key, value)
             res = None
             for stmt in node.statements:
                 res = self.evaluate(stmt)
@@ -124,6 +130,16 @@ class Eval:
             index = self.evaluate(node.rhs)
             return self.environment.get(node.lhs.name)[index]
         if isinstance(node, ast.FunctionCall):
+            if node.name in self.builtin_functions:
+                # TODO Here, code from the lower part of ast.FunctionCall was
+                # copied. Bad style ...
+                args = []
+                for a in node.args:
+                    args.append(self.evaluate(a))
+                result = self.builtin_functions[node.name](ast.SysCall(args), stdin, stdout)
+                if isinstance(result, objects.ReturnValue):
+                    return result.value
+                return result
             function = self.functions.get(node.name)
             if not isinstance(function, ast.FunctionDefinition):
                 raise Exception("can only call functions")

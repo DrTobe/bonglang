@@ -17,6 +17,10 @@ class Environment:
             return
         raise Exception("Cannot set variable called " + name)
 
+    def reg_and_set(self, name, value):
+        self.register(name)
+        self.set(name, value)
+
     def get(self, name):
         if name in self.values:
             return self.values[name]
@@ -30,13 +34,6 @@ class Environment:
         if self.parent == None:
             return False
         return self.parent.exists(name)
-
-    def add_definitions(self, otherEnv):
-        for d in otherEnv.values:
-            key = d
-            value = otherEnv.get(d)
-            self.register(key)
-            self.set(key, value)
 
     def __str__(self):
         x = "Environment "
