@@ -62,6 +62,20 @@ class TestEvaluator(unittest.TestCase):
                 ]
         test_eval_list(self, tests)
 
+    def test_advanced_pipe(self):
+        # See above: test_pipe()
+        import warnings
+        warnings.simplefilter("ignore")
+        # Since we are not able yet to redirect output, we just run pipelines
+        # here that do not produce output
+        tests = [
+                'let a = "foo" a | grep foo | /usr/bin/true', 0,
+                'let a = "foo" a | grep bar', 1,
+                'func a() { return "foo" } a() | grep foo | /usr/bin/true', 0,
+                'func a() { return "foo" } a() | grep bar', 1,
+                ]
+        test_eval_list(self, tests)
+
     def test_let(self):
         tests = [
                 "let a = 1337 a", 1337,
