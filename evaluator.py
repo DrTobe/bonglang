@@ -130,7 +130,7 @@ class Eval:
             lhs.stdout.close() # taken from python subprocess documentation
             if not pipe_output:
                 rhs.communicate() # TODO is this necessary when the output isn't piped?
-                return rhs.returncode
+                return rhs.returncode # TODO At this return, python raises a warning that process lhs is still running
             else:
                 # return the popen object so that the caller can call
                 # communicate() on it

@@ -27,28 +27,37 @@ class TestEvaluator(unittest.TestCase):
                 ]
         test_eval_list(self, tests)
 
-    @unittest.skip("this produces a warning at moment")
     def test_syscall(self):
         # TODO output should be redirected somewhere to reduce testing output
-        # For now, I 'ls examples' because there is not too many examples yet
-        # and 'cd' does not produce output.
+        # For now, I only run commands which do not produce any output
         tests = [
-                "ls examples", 0,
+                #"ls examples", 0,
                 #"grep -nr bong .", 0,
-                "cd", 0,
+                "cd", 0, # builtin
+                "/usr/bin/true", 0,
+                "/usr/bin/false", 1,
                 ]
         test_eval_list(self, tests)
 
-    @unittest.skip("this produces a warning at moment")
     def test_pipe(self):
         # TODO Testing piped subprocesses produced a warning:
         # /usr/lib/python3.8/subprocess.py:942: ResourceWarning: subprocess 1745 is still running
         # _warn("subprocess %s is still running" % self.pid,
         # ResourceWarning: Enable tracemalloc to get the object allocation traceback
         # Is there a problem?
+        #
+        # This problem seems to be inherent to the python subprocess module.
+        # The respective stackoverflow question is asked here:
+        # https://stackoverflow.com/questions/59444481/how-to-properly-finish-a-piped-python-subprocess
+        #
+        # Currently, this is mitigated by suppressing warnings:
+        import warnings
+        warnings.simplefilter("ignore")
+        # Since we are not able yet to redirect output, we just run pipelines
+        # here that do not produce output
         tests = [
-                "ls -la | grep test", 0,
-                "ls -la | grep test | grep py | grep lexer", 0,
+                "ls -la | grep foobar", 1,
+                "ls -la | grep test | grep py | grep lexer | /usr/bin/true", 0,
                 "ls | grep foobar", 1,
                 ]
         test_eval_list(self, tests)

@@ -76,6 +76,11 @@ def tab_completer(text, i): # i = it is called several times
 #tab_completer("test", 0)
 
 def main():
+    # For a stricter mode, uncomment the following two lines. Currently, this
+    # is disabled because it generates warnings when piped subprocesses are
+    # spawned.
+    #import warnings
+    #warnings.simplefilter("always")
     global symtable
     evaluator = Eval()
     readline.set_completer(tab_completer)
