@@ -46,7 +46,7 @@ class Parser:
             return self.while_stmt()
         if self.peek().type == token.LBRACE:
             return self.block_stmt()
-        if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.FLOAT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG:
+        if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.FLOAT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG or self.peek().type == token.LBRACKET or self.peek().type == token.STRING:
             return self.expression_stmt()
         # Special cases: Syscalls in current directory like './foo' or with
         # absolute path like '/foo/bar'
@@ -333,16 +333,27 @@ class Parser:
             if not self.match(token.RPAREN):
                 raise Exception("missing closing parenthesis )")
             return exp
+        if self.match(token.LBRACKET):
+            if self.match(token.RBRACKET):
+                return ast.Array([])
+            elements = self.parse_commata_expressions()
+            if not self.match(token.RBRACKET):
+                raise Exception("expected ]")
+            return ast.Array(elements)
         raise Exception("integer or () expected")
 
     def parse_arguments(self):
-        args = []
         if self.peek().type == token.RPAREN:
-            return args
-        args.append(self.expression())
+            return []
+        return self.parse_commata_expressions()
+
+    def parse_commata_expressions(self):
+        elements = []
+        elements.append(self.expression())
         while self.match(token.COMMA):
-            args.append(self.expression())
-        return args
+            elements.append(self.expression())
+        return elements
+
 
     def syscall_arguments(self, name):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP

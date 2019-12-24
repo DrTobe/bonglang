@@ -138,7 +138,12 @@ class Eval:
             if stdin != None:
                 return self.assign(node, stdin)
             index = self.evaluate(node.rhs)
-            return self.environment.get(node.lhs.name)[index]
+            lhs = self.evaluate(node.lhs)
+            if isinstance(lhs, str):
+                return lhs[index]
+            if isinstance(lhs, objects.Array):
+                return lhs.elements[index]
+            #return self.environment.get(node.lhs.name)[index]
         if isinstance(node, ast.FunctionCall):
             if node.name in self.builtin_functions:
                 # TODO Here, code from the lower part of ast.FunctionCall was
@@ -174,6 +179,11 @@ class Eval:
         elif isinstance(node, ast.Let):
             self.environment.register(node.name)
             self.environment.set(node.name, self.evaluate(node.expr))
+        elif isinstance(node, ast.Array):
+            elements = []
+            for e in node.elements:
+                elements.append(self.evaluate(e))
+            return objects.Array(elements)
         else:
             raise Exception("unknown ast node")
 

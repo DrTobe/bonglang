@@ -102,6 +102,8 @@ class TestParser(unittest.TestCase):
                 TestData("add(1, 2) * 2", "{\n(add(1, 2)*2)\n}"),
                 TestData("true || false && 1 < 2 + 3 * 3 ^ 5" , "{\n(true||(false&&(1<(2+(3*(3^5))))))\n}"),
                 TestData("let a = 1337\n a = 42", "{\nlet a = 1337\n(a=42)\n}"),
+                TestData("[1, 2, 3][0]", "{\n[1, 2, 3][0]\n}"),
+                TestData("\"abc\"[0]", "{\nabc[0]\n}"),
                 TestData("""
 let a = 1337
 let b = 42

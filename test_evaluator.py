@@ -149,6 +149,9 @@ class TestEvaluator(unittest.TestCase):
                 "let a = 42 a = 1337 a", 1337,
                 "let a = 1337 let b = 42 a = b = 15 a", 15,
                 "let a = 1337 let b = 42 a = b = 15 b", 15,
+                "let a = [1, 2, 3] a[0]", 1,
+                "[1, 2, 3][0]", 1,
+                "\"1, 2, 3\"[0]", "1",
                 ]
         test_eval_list(self, tests)
 
