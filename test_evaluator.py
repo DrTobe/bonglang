@@ -50,6 +50,11 @@ class TestEvaluator(unittest.TestCase):
         # The respective stackoverflow question is asked here:
         # https://stackoverflow.com/questions/59444481/how-to-properly-finish-a-piped-python-subprocess
         #
+        # The problem can be solved by calling Popen.wait() or Popen.communicate()
+        # on all subprocesses, not only the last one. Currently, this is not
+        # implemented in the evaluator because this would require a not-so-nice
+        # rework (passing the popen-objects around).
+        # 
         # Currently, this is mitigated by suppressing warnings:
         import warnings
         warnings.simplefilter("ignore")

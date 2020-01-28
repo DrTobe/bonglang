@@ -1,0 +1,227 @@
+#!/usr/bin/bash
+
+# Ensure that bash-completion is properly set up
+. /usr/share/bash-completion/bash_completion
+
+# bash function that gets the completion function for a given command if it exists
+get_completion_function() {
+	local candidates=$(complete | grep $1)
+	# Unfortunately, I do not know how to handle this line-wise. Therefore,
+	# I have to do a dirty little hack:
+	# Handle the whole output word-wise, whenever we find "complete" and after
+	# the loop has finished, we know that we have finished a line :(
+	for candidate in $candidates # automatically splits by ' '
+	do
+		if [ "$nextIsFunction" == "1" ]
+		then
+			local localFunctionName="$candidate"
+			local nextIsFunction=0
+		fi
+		if [ "$candidate" == "-F" ]
+		then
+			local nextIsFunction=1
+		fi
+		if [ "$candidate" == "complete" ]
+		then
+			if [ "$lastWord" == "$1" ]
+			then
+				# Success (not last line)
+				functionName=$localFunctionName
+				return 0
+			fi
+		fi
+		local lastWord="$candidate"
+	done
+	if [ "$lastWord" == "$1" ]
+	then
+		# Success (last line)
+		functionName=$localFunctionName
+		return 0
+	fi
+	return 1
+}
+load_completion_function() {
+	local candidates=$(complete | grep -- -D)
+	# See above
+	for candidate in $candidates # automatically splits by ' '
+	do
+		if [ "$nextIsFunction" == "1" ]
+		then
+			local functionName="$candidate"
+			local hasFunction=1
+			local nextIsFunction=0
+			if [ "$isDefault" == "1" ]
+			then
+				$functionName $1 "" $1 # call loader function
+				return 0
+			fi
+		fi
+		if [ "$candidate" == "-F" ]
+		then
+			local nextIsFunction=1
+		fi
+		if [ "$candidate" == "-D" ]
+		then
+			local isDefault=1
+			if [ "$hasFunction" == "1" ]
+			then
+				$functionName $1 "" $1 # call loader function
+				return 0
+			fi
+		fi
+		if [ "$candidate" == "complete" ]
+		then
+			local hasFunction=0
+			local isDefault=0
+		fi
+	done
+	return 1
+}
+# Attention: load_and_get... must not be called with $(...) syntax because it
+# changes bash state and $(...) seems to be executed in its own ... scope?
+# Therefore, the name of the completionFunction is not "returned" by echo but
+# by setting a global variable instead. Yeah, bash scripting :)
+load_and_get_completion_function() {
+	if get_completion_function $1
+	then
+		completionFunction=$functionName
+		return 0
+	fi
+	load_completion_function $1
+	if get_completion_function $1
+	then
+		completionFunction=$functionName
+		return 0
+	fi
+	return 1
+}
+
+if load_and_get_completion_function $2
+then
+	# Since my bash-scripting skills are so lacking, I have to do everything step
+	# by step here:
+	# From all arguments, extract the current word position (first argument
+	# after this script's name, i.e. $1) and the current command-line which should
+	# by completed (all following arguments)
+	allArgs=($@)
+	argLen=${#allArgs[@]}
+	wordPos=${allArgs[0]}
+	argsWithoutPos=(${allArgs[@]:1:$argLen})
+	# Set the 6 environment variables which are used by the completion scripts
+	COMP_LINE=${argsWithoutPos[@]}
+	COMP_POINT=0 # We have to calculate COMP_POINT by counting all words until $wordPos
+	wordIter=0
+	while [ $wordIter -le $wordPos ]
+	do
+		word=${argsWithoutPos[$wordIter]}
+		wordLen=${#word}
+		COMP_POINT=$((COMP_POINT+wordLen))
+		if [ $wordIter -gt 0 ] # For all following words, include the whitespace between the two words
+		then
+			COMP_POINT=$((COMP_POINT+1))
+		fi
+		((wordIter++))
+	done
+	COMP_WORDS=(${argsWithoutPos[@]})
+	COMP_CWORD=$wordPos
+	COMP_KEY=9   # we hold those two ...
+	COMP_TYPE=33 # ... fix for the moment
+	COMPREPLY=() # Reset COMPREPLY ... :(
+	# Set the three arguments to the completion function
+	cmdname=$2
+	curWord=${argsWithoutPos[$wordPos]}
+	prevWordPos=$((wordPos-1))
+	prevWord=${argsWithoutPos[$prevWordPos]}
+	# Call the completion function
+	: '# Output debug info
+	echo $completionFunction
+	echo $cmdname
+	echo $curWord
+	echo $prevWord
+	'
+	$completionFunction "$cmdname" "$curWord" "$prevWord"
+	echo ${COMPREPLY[@]}
+else
+	echo "failure"
+fi
+
+#
+# Starting here: Just testing stuff
+#
+
+# Register a function _custom_complete() for (hopefully) nonexistent command
+# 'asdf' which just prints the variables/parameters
+: '
+_custom_complete() {
+	echo "" # Just a newline for nicer output
+	echo "COMP_LINE='"$COMP_LINE"'"
+	echo "COMP_POINT='"$COMP_POINT"'"
+	echo "COMP_KEY='"$COMP_KEY"'"
+	echo "COMP_TYPE='"$COMP_TYPE"'"
+	echo "COMP_WORDS='"${COMP_WORDS[@]}"'"
+	echo "COMP_CWORD='"$COMP_CWORD"'"
+	echo "p1='"$1"'"
+	echo "p2='"$2"'"
+	echo "p3='"$3"'"
+}
+complete -F _custom_complete asdf
+'
+
+# Try to manually call the _known_hosts function which provides completion for
+# dig, ftp ...
+: '
+COMP_LINE="ftp "
+COMP_POINT=4
+COMP_KEY=9
+COMP_TYPE=33
+COMP_WORDS=(ftp )
+COMP_CWORD=1
+_known_hosts ftp "" ftp
+length=${#COMPREPLY[@]}
+for reply in ${COMPREPLY[@]}
+do
+	#suppress output of: echo $reply
+	true # bash does not like empty loops?
+done
+echo $length
+'
+
+# Try to dynamically load the completion code for git
+: '
+echo "Completion function for git before calling _completion_loader:"
+complete | grep git
+COMP_LINE="git "
+COMP_POINT=4
+COMP_KEY=9
+COMP_TYPE=33
+COMP_WORDS=(git )
+COMP_CWORD=1
+_completion_loader git "" git
+echo "Completion function for git after calling _completion_loader:"
+complete | grep git
+'
+
+# Let's call it :)
+: '
+COMP_LINE="git ch file"
+COMP_POINT=6
+COMP_KEY=9
+COMP_TYPE=33
+COMP_WORDS=(git ch file)
+COMP_CWORD=1
+COMPREPLY=() # Reset COMPREPLY ... :(
+__git_wrap__git_main git ch git
+echo ${COMPREPLY[@]}
+'
+
+# Let's try something more
+: '
+COMP_LINE="cd ~/"
+COMP_POINT=5
+COMP_KEY=9
+COMP_TYPE=33
+COMP_WORDS=(cd ~/)
+COMP_CWORD=1
+_cd cd ~/ cd
+echo ${COMPREPLY[@]}
+'
