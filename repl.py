@@ -26,21 +26,31 @@ def tab_completer(text, i): # i = it is called several times
     global tab_completer_text
     global tab_completer_list
     if text != tab_completer_text:
-        # TODO Improvement possibility: When implementing this tab-completion
-        # feature, I realized that this could be made arbitrarily complex. For
-        # example, the following could be added, too (but we have to consider
-        # the trade-off between complexity / code readability and benefit):
-        # a) after 'cd', show only local directories
-        # b) after 'cd' starting with an absolute path, try to make meaningful
-        # suggestions from that path (that seems to be a rather important
-        # feature)
-        # c) after command names, show possible arguments (ouch! that's hard!)
-        # d) ... please continue list :)
-        # Finally, we should have a look if there are pre-built autocompletion
-        # packages around. For archlinux, for example, I remember installing
-        # 'bash-completion' enables completion for pacman commands. Maybe, we
-        # have to find out how these packages (for bash) work so that we can
-        # automatically transform those for bong.
+        # TODO (The following is not implemented at all yet, furthermore, it
+        # needs more thinking because the syntax is a little bit more
+        # complicated)
+        # New approach for tab-completion: Forward the ugly work to
+        # the bash-complete bash script.
+        # In a shell-oriented approach, we could do the following (but for more
+        # general bong syntax completion, we maybe use the bong-parser itself?):
+        # 1. Split the current line into separate commands (e.g. by ; and |, have
+        # a look at $COMP_WORDBREAKS) and each command into separate words
+        # (by ' '), determine in which word the caret is currently.
+        # 2. If the caret is in the first word, we are completing a) bong-symbols,
+        # b) paths (absolute, relative) that should finally expand to a
+        # command-name or c) global command-names. For a), we just refer to the
+        # current symbol table while for b) and c), we can pass that work to
+        # the bash-complete bash script. TODO This, by-the-way, has to be 
+        # amended by the possibility to run compgen -d, -c and -f to complete
+        # directories, commands and files. The result will be a little bit too
+        # bash-centric (e.g. it will complete bash-only commands) but
+        # nevertheless, this would spare us a lot of work :)
+        # 3. If the caret is not in the first word, we are completing the
+        # arguments to whatever is the first word (could be a) a command or b) a
+        # bong function). Then, we have to go back to the first word and
+        # extract the command-name / function-name. For a), we will forward the
+        # ugly work to the bash-complete bash script. For b), we can match the
+        # current symbol table against the required type.
         tab_completer_text = text
         tab_completer_list = []
         only_local_executables = readline.get_line_buffer().startswith('./') # special case
@@ -96,8 +106,14 @@ def main():
             prompt = 2*char if username!="root" else "#"+char
             repl_line = "[{}@{} {}]{} ".format(username, hostname, directory, prompt)
             inp = input(repl_line)
-            if inp == "q":
-                break
+            # Distinguish between quit and exit (different returncode). Like
+            # this, you can start repl from bash (autostart from .bashrc) and 
+            # quit the whole shell in one case while leaving it open in the
+            # other.
+            if inp == "quit" or inp == "q":
+                return 1
+            elif inp == "exit":
+                return 0
             code += inp + "\n"
             l = Lexer(code)
             # TODO I think we need to return the current symtable / scope from
@@ -131,4 +147,4 @@ def main():
             code = ""
 
 if __name__ == "__main__":
-    main()
+    exit(main())
