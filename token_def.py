@@ -9,7 +9,7 @@ class Token:
         return self.type
 
 BONG = "|"
-ERR = "ERROR"
+OTHER = "OTHER"
 EOF = "EOF"
 ASSIGN = "="
 DOT = "."

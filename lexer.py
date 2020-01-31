@@ -134,7 +134,7 @@ class Lexer:
                 lex += self.next()
             return self.create_token(token.STRING, lex)
         else:
-            return self.create_token(token.ERR, "unrecognized character ("+c+")")
+            return self.create_token(token.OTHER, c)
 
     def peek(self):
         return self.code[self.current_pos] if self.current_pos < len(self.code) else ""

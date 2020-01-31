@@ -358,7 +358,7 @@ class Parser:
     def syscall_arguments(self, name):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
         # TODO complete list of invalid tokens (which finish syscall args)
-        invalid = [token.BONG, token.SEMICOLON, token.LBRACE, token.OP_EQ, token.RPAREN, token.EOF, token.ERR]
+        invalid = [token.BONG, token.SEMICOLON, token.LBRACE, token.OP_EQ, token.RPAREN, token.EOF]
         arguments = []
         arg = name
         while self.peek().type not in invalid:
@@ -370,7 +370,7 @@ class Parser:
             # for valid tokens, translate
             # only for int_value, bool_value, identifier, we have to use the lexeme
             # otherwise, the type is equivalent to what was matched before (which is what we want to restore here)
-            if c.type in [token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE, token.STRING]:
+            if c.type in [token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE, token.STRING, token.OTHER]:
                 arg += c.lexeme
             else:
                 arg += c.type
