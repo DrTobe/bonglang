@@ -15,20 +15,17 @@ import os
 # it's a pity, I have to define this function, but bong is not yet
 # available :(
 def run(cmd):
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, encoding="utf-8")
+    res = subprocess.run(cmd.split(" "), stdout=subprocess.PIPE, encoding="utf-8")
+    if res.returncode != 0:
+        print("Command '{}' failed!".format(cmd.split(" ")[0]))
     return res.stdout[:-1] # omit \n at the end
 
 symtable = SymbolTable() # has to be global now to be accessed by tab_completer()
 
-tab_completer_text = None # 'static' var for tab_completer() in python :(
-tab_completer_list = []
+tab_completer_list = [] # 'static' var for tab_completer() in python :(
 def tab_completer(text, i): # i = it is called several times
-    global tab_completer_text
     global tab_completer_list
-    if text != tab_completer_text:
-        # TODO (The following is not implemented at all yet, furthermore, it
-        # needs more thinking because the syntax is a little bit more
-        # complicated)
+    if i == 0:
         # New approach for tab-completion: Forward the ugly work to
         # the bash-complete bash script.
         # In a shell-oriented approach, we could do the following (but for more
@@ -40,45 +37,45 @@ def tab_completer(text, i): # i = it is called several times
         # b) paths (absolute, relative) that should finally expand to a
         # command-name or c) global command-names. For a), we just refer to the
         # current symbol table while for b) and c), we can pass that work to
-        # the bash-complete bash script. TODO This, by-the-way, has to be 
-        # amended by the possibility to run compgen -d, -c and -f to complete
-        # directories, commands and files. The result will be a little bit too
-        # bash-centric (e.g. it will complete bash-only commands) but
-        # nevertheless, this would spare us a lot of work :)
+        # the bash-complete bash script.
         # 3. If the caret is not in the first word, we are completing the
-        # arguments to whatever is the first word (could be a) a command or b) a
-        # bong function). Then, we have to go back to the first word and
-        # extract the command-name / function-name. For a), we will forward the
-        # ugly work to the bash-complete bash script. For b), we can match the
-        # current symbol table against the required type.
-        tab_completer_text = text
+        # arguments to whatever is the first word (could be a) a bong function
+        # or b) a command). Then, we have to go back to the first word and
+        # extract the command-name / function-name. For a), we can match the
+        # current symbol table against the required type. For b), we will forward the
+        # ugly work to the bash-complete bash script.
         tab_completer_list = []
-        only_local_executables = readline.get_line_buffer().startswith('./') # special case
-        # 1. local variables
-        if not only_local_executables:
+        line_buffer = readline.get_line_buffer()
+        line_words = line_buffer.split(" ")
+        # TODO Step 1 (splitting the command line input) omitted currently
+        # Step 2: First-word completion (bong-symbols and bash-complete)
+        # TODO Currently, we do not know how to determine the current cursor
+        # position. So instead of checking if we are in the first word, we just
+        # count words :( -> https://stackoverflow.com/questions/60018367/how-to-get-the-current-cursor-position-in-python-readline
+        if len(line_words) == 1:
+            # a) bong-symbols (functions and variables)
+            # TODO Add bong-builtins?
             global symtable
             for name in symtable.names.keys():
                 if name.startswith(text):
                     tab_completer_list.append(name)
-        # 2. files/directories
-        allfilesdirs = os.listdir()
-        for filedir in allfilesdirs:
-            if filedir.startswith(text):
-                if only_local_executables:
-                    if os.path.isfile(filedir) and os.access(filedir, os.X_OK):
-                        tab_completer_list.append(filedir)
-                else:
-                    tab_completer_list.append(filedir)
-        # 3. programs on path
-        if not only_local_executables:
-            for pathdir in os.environ['PATH'].split(':'):
-                try: # all kinds of directory accesses could fail
-                    for filedir in os.listdir(pathdir):
-                        if filedir.startswith(text):
-                            if os.path.isfile(pathdir+'/'+filedir) and os.access(pathdir+'/'+filedir, os.X_OK):
-                                tab_completer_list.append(filedir)
-                except Exception as e:
-                    pass
+            # b/c) bash-complete
+            res = run("./bash-complete 0 {}".format(line_words[0]))
+            tab_completer_list.extend(res.split(" "))
+        else:
+            # TODO Distinguishing a) bong-function and b) command not done currently
+            # ... only completing system commands
+            res = run("./bash-complete {} {}".format(len(line_words)-1, line_buffer))
+            # Now, tab_completer_list.extend(res.split(" ")) like above does
+            # not work because we have disabled the word-splitting be readline
+            # (for readline, the whole command-line is a single "word"). Thus,
+            # if returning a valid parameter, readline will replace the whole
+            # current input by that single parameter (effectively deleting the
+            # command name). To prevent, we just build up the whole input line
+            # here: Join all words except the last with " " and append the
+            # completion result.
+            for compl in res.split(" "):
+                tab_completer_list.append(" ".join(line_words[:-1])+" "+compl)
     return tab_completer_list[i] if i < len(tab_completer_list) else None
 
 # Debugging tab_completer (you don't see its output when normally run, so
@@ -95,6 +92,13 @@ def main():
     evaluator = Eval()
     readline.set_completer(tab_completer)
     readline.parse_and_bind("tab: complete")
+    # Unset all completer_delimiters (defaults to `~!@#$%^&*()-=+[{]}\|;:'",<>/? ).
+    # This is necessary because, if omitted, the following happens:
+    # 1. ./comma <tab>
+    # 2. completion function returns "./command"
+    # 3. ././command
+    # It seems to be simpler just to do the line splitting all by ourselves.
+    readline.set_completer_delims("")
     code = ""
     while True:
         try:

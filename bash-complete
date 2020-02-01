@@ -96,6 +96,28 @@ load_and_get_completion_function() {
 	return 1
 }
 
+# If we are in the first word, we complete commands or fallback to directories
+# because those could expand to a command path (bash default seems to be to
+# only return commands from PATH if there are any found and directories otherwise)
+if [ $1 == 0 ]
+then
+	commands=$(compgen -c $2) # Try commands first
+	if [ "$commands" ]
+	then
+		echo $commands
+		exit
+	else
+		dirs=$(compgen -d $2) # Try directories as fallback
+		slashdirs=()
+		for dir in $dirs
+		do
+			slashdirs+=($dir"/") # Append / to each directory
+		done
+		echo ${slashdirs[@]}
+	fi
+	exit # Do not try function completion
+fi
+
 if load_and_get_completion_function $2
 then
 	# Since my bash-scripting skills are so lacking, I have to do everything step
@@ -139,10 +161,28 @@ then
 	echo $curWord
 	echo $prevWord
 	'
-	$completionFunction "$cmdname" "$curWord" "$prevWord"
-	echo ${COMPREPLY[@]}
+	# If we have found a meaningful completion function, call it. Otherwise, 
+	# do file and directory completion.
+	if [ "$completionFunction" != "_minimal" ]
+	then
+		$completionFunction "$cmdname" "$curWord" "$prevWord"
+		echo ${COMPREPLY[@]}
+	else # file & directory completion
+		results=()
+		files=$(compgen -f $curWord)
+		for file in $files
+		do
+			results+=($file)
+		done
+		dirs=$(compgen -d $curWord) # Try directories as fallback
+		for dir in $dirs
+		do
+			results+=($dir"/") # Append / to each directory
+		done
+		echo ${results[@]}
+	fi
 else
-	echo "failure"
+	exit 1
 fi
 
 #
