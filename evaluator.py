@@ -231,31 +231,40 @@ class Eval:
         # TODO We pass a whole ast.SysCall object to callprogram, only the args
         # list would be enough. Should we change that? This would simplify this
         # method itself and calling builtin functions.
-        if program.args[0] == "cd":
+        #
+        # Before doing anything, expand ~ to user's home directory
+        cmd = []
+        home_directory = os.path.expanduser("~")
+        for arg in program.args:
+            if arg.startswith("~"):
+                arg = home_directory+arg[1:]
+            cmd.append(arg)
+        # Check bong builtins first. Until now, only 'cd' defined
+        if cmd[0] == "cd":
             if stdin != None or stdout!=Eval.EXITCODE:
                 print("bong: cd: can not be piped")
                 # TODO Here, the calling pipe will crash :( return something
                 # usable instead!
                 return None
-            return self.call_cd(program.args)
+            return self.call_cd(cmd)
         path_var = os.environ['PATH'].split(':')
         # Special case: Syscalls with relative or absolute path ('./foo', '../foo' and '/foo/bar')
-        if program.args[0].startswith('./') or program.args[0].startswith('../') or program.args[0].startswith('/'):
+        if cmd[0].startswith('./') or cmd[0].startswith('../') or cmd[0].startswith('/'):
             path_var = [""]
         for path in path_var:
             if len(path) > 0:
                 if not path.endswith('/'):
                     path += "/"
-                filepath = path+program.args[0]
+                filepath = path+cmd[0]
             else:
-                filepath = program.args[0]
+                filepath = cmd[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
                 # TODO It seems to me that this distinction between simple
                 # syscalls and piped syscalls can be removed. Let's try that
                 # soon!
                 # Simple syscall
                 if stdin == None and stdout==Eval.EXITCODE:
-                    compl = subprocess.run(program.args)
+                    compl = subprocess.run(cmd)
                     return compl.returncode
                 # Piped syscall
                 # lhs = subprocess.Popen(["ls"], stdout=subprocess.PIPE)
@@ -276,7 +285,7 @@ class Eval:
                     stdin_arg = stdin if not case_c else subprocess.PIPE
                     stdout_arg = subprocess.PIPE if stdout!=Eval.EXITCODE else None
                     proc = subprocess.Popen(
-                            program.args, stdin=stdin_arg, stdout=stdout_arg)
+                            cmd, stdin=stdin_arg, stdout=stdout_arg)
                     if case_c:
                         # Prevent possible bytestreams from being interpreted
                         # as strings. Currently 2019-12-22, this is not strictly
@@ -303,7 +312,7 @@ class Eval:
                         return proc.communicate()[0]
                     else:
                         return proc.stdout
-        print("bong: {}: command not found".format(program.args[0]))
+        print("bong: {}: command not found".format(cmd[0]))
 
     def call_cd(self, args):
         if len(args) > 2:

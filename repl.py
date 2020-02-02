@@ -94,6 +94,7 @@ def tab_completer(text, i): # i = it is called several times
 #tab_completer("cd dev", 0)
 
 def main():
+    config_print_results = True # Switches on and off the P in REPL
     # For a stricter mode, uncomment the following two lines. Currently, this
     # is disabled because it generates warnings when piped subprocesses are
     # spawned.
@@ -116,11 +117,15 @@ def main():
             # towards a nicer repl-experience
             username = run("whoami")
             hostname = run("hostname")
-            directory = run("pwd").split("/")[-1]
+            home_directory = os.path.expanduser("~")
+            full_directory = run("pwd")
+            directory = "~" if full_directory==home_directory else full_directory.split("/")[-1]
             char = ">" if code == "" else "."
             prompt = 2*char if username!="root" else "#"+char
             repl_line = "[{}@{} {}]{} ".format(username, hostname, directory, prompt)
             inp = input(repl_line)
+            # Handle special repl-input first.
+            # 1. Quitting/Exiting the repl
             # Distinguish between quit and exit (different returncode). Like
             # this, you can start repl from bash (autostart from .bashrc) and 
             # quit the whole shell in one case while leaving it open in the
@@ -129,6 +134,13 @@ def main():
                 return 1
             elif inp == "exit":
                 return 0
+            # 2. #printon & #printoff shell control
+            elif inp == "#printon":
+                config_print_results = True
+                continue
+            elif inp == "#printoff":
+                config_print_results = False
+                continue
             code += inp + "\n"
             l = Lexer(code)
             # TODO I think we need to return the current symtable / scope from
@@ -145,7 +157,8 @@ def main():
                 evaluated = evaluator.evaluate(program)
                 code = ""
                 if evaluated != None:
-                    print(str(evaluated))
+                    if config_print_results:
+                        print(str(evaluated))
                     if isinstance(evaluated, objects.ReturnValue):
                         exitcode = 0
                         if evaluated.value != None:
