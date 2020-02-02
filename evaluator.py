@@ -141,8 +141,10 @@ class Eval:
             lhs = self.evaluate(node.lhs)
             if isinstance(lhs, str):
                 return lhs[index]
-            if isinstance(lhs, objects.Array):
+            if isinstance(lhs, objects.Array): # bong array
                 return lhs.elements[index]
+            if isinstance(lhs, list): # sys_argv
+                return lhs[index]
             #return self.environment.get(node.lhs.name)[index]
         if isinstance(node, ast.FunctionCall):
             if node.name in self.builtin_functions:

@@ -8,7 +8,7 @@ def main():
     arguments = sys.argv
     if len(arguments) == 1:
         return repl.main()
-    if len(arguments) == 2:
+    if len(arguments) >= 2:
         with open(arguments[1]) as f:
             code = f.read()
             l = lexer.Lexer(code)
