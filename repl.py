@@ -141,6 +141,10 @@ def main():
             elif inp == "#printoff":
                 config_print_results = False
                 continue
+            # 3. #include as a temporary repl solution
+            elif inp.startswith("#include "):
+                with open(inp.split(" ")[1]) as f:
+                    inp = f.read()
             code += inp + "\n"
             l = Lexer(code)
             # TODO I think we need to return the current symtable / scope from

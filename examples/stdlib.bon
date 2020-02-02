@@ -1,0 +1,12 @@
+// Returns a substring / range / slice of a given string. The indexes
+// are interpreted as [from, to), the from is inclusive, the to is exclusive.
+// str_range("Hi, Bong!", 4, 8) returns "Bong"
+func str_range(str, from, to) {
+	let i = from
+	let res = ""
+	while i < to {
+		res = res + str[i]
+		i = i + 1
+	}
+	return res
+}
