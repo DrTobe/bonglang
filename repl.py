@@ -66,7 +66,8 @@ def tab_completer(text, i): # i = it is called several times
                     tab_completer_list.append(name)
             # b/c) bash-complete
             res = run(bash_complete + " 0 " + line_words[0])
-            tab_completer_list.extend(res.split(" "))
+            if res:
+                tab_completer_list.extend(res.split(" "))
         else:
             # TODO Distinguishing a) bong-function and b) command not done currently
             # ... only completing system commands

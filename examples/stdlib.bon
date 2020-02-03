@@ -10,3 +10,8 @@ func str_range(str, from, to) {
 	}
 	return res
 }
+
+// One of Tobbe's old bash aliases
+func texpac() {
+	expac --timefmt="%Y-%m-%d %T" "%l\t%n" | sort
+}
