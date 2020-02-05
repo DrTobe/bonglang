@@ -101,8 +101,8 @@ class Lexer:
             lex = c
             while is_number(self.peek()):
                 lex += self.next()
-            if self.match(".") and is_number(self.peek()):
-                lex += "."
+            if self.peek()=="." and is_number(self.peek(1)):
+                lex += self.next() # == "."
                 while is_number(self.peek()):
                     lex += self.next()
                 return self.create_token(token.FLOAT_VALUE, lex)
@@ -136,8 +136,9 @@ class Lexer:
         else:
             return self.create_token(token.OTHER, c)
 
-    def peek(self):
-        return self.code[self.current_pos] if self.current_pos < len(self.code) else ""
+    def peek(self, steps=0):
+        pos = self.current_pos + steps
+        return self.code[pos] if pos < len(self.code) else ""
 
     def next(self):
         c = self.peek()
