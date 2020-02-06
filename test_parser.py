@@ -24,6 +24,14 @@ class TestParser(unittest.TestCase):
                 ]
         test_strings(self, testData)
 
+    def test_let(self):
+        data = [
+                "let a = 0; let b = 0;", "{\nlet a = 0\nlet b = 0\n}",
+                "let a = 0; let b = 0; a | b", "{\nlet a = 0\nlet b = 0\na | b\n}"
+                ]
+        test_strings_list(self, data)
+
+
     def test_functioncall(self):
         testData = [
                 TestData("someFunc()", "{\nsomeFunc()\n}"),
@@ -46,6 +54,7 @@ class TestParser(unittest.TestCase):
                 "ls -la | grep foo", "{\n(call ls -la) | (call grep foo)\n}",
                 "cd | grep", "{\n(call cd) | (call grep)\n}", # parses, but does not run
                 "ls | grep foo | grep bar", "{\n(call ls) | (call grep foo) | (call grep bar)\n}",
+                "let a = 0; let b = 0; a + 1 | grep foo | b", "{\nlet a = 0\nlet b = 0\n(a+1) | (call grep foo) | b\n}",
                 ]
         test_strings_list(self, data)
 

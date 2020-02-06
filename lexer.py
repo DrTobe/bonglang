@@ -92,7 +92,7 @@ class Lexer:
         if c == "&":
             if self.match("&"):
                 return self.create_token(token.OP_AND)
-            raise Exception("single & not supported (yet?)")
+            return self.create_token(token.AMPERSAND)
         if c == "|":
             if self.match("|"):
                 return self.create_token(token.OP_OR)

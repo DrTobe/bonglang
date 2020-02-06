@@ -123,13 +123,33 @@ class Eval:
             return node.value
         elif isinstance(node, ast.Bool):
             return node.value
-        elif isinstance(node, ast.Pipe):
-            if isinstance(node.rhs, ast.SysCall):
-                pipe = Eval.PIPE
+        elif isinstance(node, ast.Pipeline):
+            if len(node.elements) < 2:
+                raise Exception("Pipelines should have more than one element. This seems to be a parser bug.")
+            syscalls = []
+            if isinstance(node.elements[0], ast.SysCall):
+                syscalls.append(node.elements[0])
+                stdin = None
             else:
-                pipe = Eval.VALUE
-            lhs = self.evaluate(node.lhs, stdin=stdin, stdout=pipe)
-            return self.evaluate(node.rhs, stdin=lhs, stdout=stdout)
+                stdin = self.evaluate(node.elements[0])
+            syscalls.extend(node.elements[1:-1])
+            if isinstance(node.elements[-1], ast.SysCall):
+                syscalls.append(node.elements[-1])
+                assignto = None
+            else:
+                assignto = node.elements[-1]
+            # Special case: piping an ordinary expression into a variable
+            if len(syscalls) == 0:
+                if assignto == None:
+                    raise Exception("Assertion error: Whenever a pipeline has no syscalls, it should consist of an expression that is assigned to something. No assignment was found here.")
+                return self.assign(assignto, stdin)
+            for syscall in syscalls[:-1]:
+                stdin = self.callprogram(syscall, stdin, Eval.PIPE)
+            if assignto != None:
+                val = self.callprogram(syscalls[-1], stdin, Eval.VALUE)
+                return self.assign(assignto, val)
+            else:
+                return self.callprogram(syscalls[-1], stdin, Eval.EXITCODE)
         elif isinstance(node, ast.Variable):
             if stdin != None: # oops, piped input :)
                 return self.assign(node, stdin)
@@ -219,8 +239,8 @@ class Eval:
             name = lhs.name
             self.environment.set(name, value)
             return value
-        if isinstance(node.lhs, ast.IndexAccess):
-            index_access = node.lhs
+        if isinstance(lhs, ast.IndexAccess):
+            index_access = lhs
             if not isinstance(index_access.lhs, ast.Variable):
                 raise(Exception("Can only index variables"))
             name = index_access.lhs.name
@@ -298,6 +318,7 @@ class Eval:
                             proc.stdin.write(stdin)
                         else:
                             proc.stdin.write(str(stdin).encode("utf-8"))
+                        proc.stdin.close()
                     # Now, after having created this process, we can run the
                     # stdout.close() on the previous process (if there was one)
                     # stdout of the previous is stdin here.

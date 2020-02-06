@@ -107,12 +107,15 @@ class WhileStatement:
     def __str__(self):
         return "while {} {}".format(str(self.cond), str(self.t))
 
-class Pipe:
-    def __init__(self, lhs, rhs):
-        self.lhs = lhs
-        self.rhs = rhs
+class Pipeline:
+    def __init__(self, elements, nonblocking):
+        self.elements = elements
+        self.nonblocking = nonblocking
     def __str__(self):
-        return "{} | {}".format(str(self.lhs), str(self.rhs))
+        pipeline = " | ".join(map(str,self.elements))
+        if self.nonblocking:
+            pipeline += " &"
+        return pipeline
 
 class SysCall:
     def __init__(self, args):

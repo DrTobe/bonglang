@@ -9,6 +9,7 @@ class Token:
         return self.type
 
 BONG = "|"
+AMPERSAND = "&"
 OTHER = "OTHER"
 EOF = "EOF"
 ASSIGN = "="

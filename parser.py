@@ -207,10 +207,10 @@ class Parser:
         return self.compare()
 
     def compare(self):
-        lhs = self.parse_pipe()
+        lhs = self.parse_pipeline()
         while self.match([token.OP_EQ, token.OP_NEQ, token.OP_GT, token.OP_GE, token.OP_LT, token.OP_LE]):
             prev = self.peek(-1)
-            rhs = self.parse_pipe()
+            rhs = self.parse_pipeline()
             if prev.type == token.OP_EQ:
                 op = "=="
             elif prev.type == token.OP_NEQ:
@@ -228,11 +228,18 @@ class Parser:
             lhs = ast.BinOp(lhs, op, rhs)
         return lhs
 
-    def parse_pipe(self):
-        lhs = self.addition()
+    def parse_pipeline(self):
+        leftmost = self.addition()
+        if not self.peek().type==token.BONG:
+            return leftmost
+        elements = [leftmost]
         while self.match(token.BONG):
-            lhs = ast.Pipe(lhs, self.addition())
-        return lhs
+            elements.append(self.addition())
+            #lhs = ast.Pipe(lhs, self.addition())
+        pipeline = ast.Pipeline(elements, False)
+        if self.match(token.AMPERSAND):
+            pipeline.nonblocking = True
+        return pipeline
 
     def addition(self):
         lhs = self.multiplication()
@@ -358,7 +365,7 @@ class Parser:
     def syscall_arguments(self, name):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
         # TODO complete list of invalid tokens (which finish syscall args)
-        invalid = [token.BONG, token.SEMICOLON, token.LBRACE, token.OP_EQ, token.RPAREN, token.EOF]
+        invalid = [token.BONG, token.AMPERSAND, token.SEMICOLON, token.LBRACE, token.OP_EQ, token.RPAREN, token.EOF]
         arguments = []
         arg = name
         while self.peek().type not in invalid:
