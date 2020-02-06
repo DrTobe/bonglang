@@ -370,7 +370,7 @@ class Parser:
             # for valid tokens, translate
             # only for int_value, bool_value, identifier, we have to use the lexeme
             # otherwise, the type is equivalent to what was matched before (which is what we want to restore here)
-            if c.type in [token.IDENTIFIER, token.INT_VALUE, token.BOOL_VALUE, token.STRING, token.OTHER]:
+            if c.type in [token.IDENTIFIER, token.INT_VALUE, token.FLOAT_VALUE, token.BOOL_VALUE, token.STRING, token.OTHER]:
                 arg += c.lexeme
             else:
                 arg += c.type
@@ -400,9 +400,6 @@ class Parser:
         for i in range(Parser.AHEAD):
             self.next_tokens.append(self.lexer.get_token())
 
-    # TODO Lexer generates whitespace tokens; here, implement a method that
-    # allows for checking if the next token is whitespace, skip whitespace
-    # tokens in peek; next and match rely on peek
     def peek(self, steps=0):
         if steps >= 0:
             if steps >= Parser.AHEAD:
