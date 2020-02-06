@@ -156,7 +156,8 @@ class Eval:
             for process in processes:
                 process.wait()
             if assignto != None:
-                return self.assign(assignto, outstreams[0])
+                self.assign(assignto, outstreams[0])
+                return lastProcess.returncode
             else:
                 return lastProcess.returncode
         elif isinstance(node, ast.Variable):
