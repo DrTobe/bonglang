@@ -11,11 +11,6 @@ import _io
 import sys
 
 class Eval:
-    # Poor man's python enum :)
-    # Determines what a syscall should return
-    EXITCODE = 0
-    PIPE = 1
-    VALUE = 2
     # Defined here so that it can be used by the parser
     BUILTIN_ENVIRONMENT = {
                 "sys_argv": sys.argv
@@ -32,7 +27,7 @@ class Eval:
                 }
 
     # Eval.EXITCODE -> "name 'Eval' is not defined" ... But why does it work?
-    def evaluate(self, node, stdin=None, stdout=EXITCODE):
+    def evaluate(self, node):
         if isinstance(node, ast.Program):
             for key, value in node.functions.values.items():
                 if key in self.builtin_functions:
@@ -143,20 +138,30 @@ class Eval:
                 if assignto == None:
                     raise Exception("Assertion error: Whenever a pipeline has no syscalls, it should consist of an expression that is assigned to something. No assignment was found here.")
                 return self.assign(assignto, stdin)
+            processes = []
             for syscall in syscalls[:-1]:
-                stdin = self.callprogram(syscall, stdin, Eval.PIPE)
+                process = self.callprogram(syscall, stdin, True)
+                processes.append(process)
+                stdin = process.stdout
+            pipeLastOutput = assignto!=None
+            lastProcess = self.callprogram(syscalls[-1], stdin, pipeLastOutput)
+            # So, there is this single case that is different from everything else
+            # and that needs special treatment:
+            # Whenever the first process is opened with stdin=PIPE, we must
+            # close its stdin except when this is the only process, then we
+            # must not close the stdin, because then communicate() will fail.
+            if not isinstance(node.elements[0], ast.SysCall) and len(processes):
+                processes[0].stdin.close()
+            outstreams = lastProcess.communicate()
+            for process in processes:
+                process.wait()
             if assignto != None:
-                val = self.callprogram(syscalls[-1], stdin, Eval.VALUE)
-                return self.assign(assignto, val)
+                return self.assign(assignto, outstreams[0])
             else:
-                return self.callprogram(syscalls[-1], stdin, Eval.EXITCODE)
+                return lastProcess.returncode
         elif isinstance(node, ast.Variable):
-            if stdin != None: # oops, piped input :)
-                return self.assign(node, stdin)
             return self.environment.get(node.name)
         elif isinstance(node, ast.IndexAccess):
-            if stdin != None:
-                return self.assign(node, stdin)
             index = self.evaluate(node.rhs)
             lhs = self.evaluate(node.lhs)
             if isinstance(lhs, str):
@@ -173,7 +178,7 @@ class Eval:
                 args = []
                 for a in node.args:
                     args.append(self.evaluate(a))
-                result = self.builtin_functions[node.name](ast.SysCall(args), stdin, stdout)
+                result = self.builtin_functions[node.name](ast.SysCall(args))
                 if isinstance(result, objects.ReturnValue):
                     return result.value
                 return result
@@ -195,7 +200,7 @@ class Eval:
                 return result.value
             return result
         elif isinstance(node, ast.SysCall):
-            return self.callprogram(node, stdin, stdout)
+            return self.callprogram(node)
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
@@ -249,7 +254,7 @@ class Eval:
             return value
         raise Exception("Can only assign to variable or indexed variable")
 
-    def callprogram(self, program, stdin, stdout):
+    def callprogram(self, program, stdin=None, pipeOutput=False):
         # TODO We pass a whole ast.SysCall object to callprogram, only the args
         # list would be enough. Should we change that? This would simplify this
         # method itself and calling builtin functions.
@@ -263,7 +268,7 @@ class Eval:
             cmd.append(arg)
         # Check bong builtins first. Until now, only 'cd' defined
         if cmd[0] == "cd":
-            if stdin != None or stdout!=Eval.EXITCODE:
+            if stdin != None or pipeOutput:
                 print("bong: cd: can not be piped")
                 # TODO Here, the calling pipe will crash :( return something
                 # usable instead!
@@ -281,11 +286,8 @@ class Eval:
             else:
                 filepath = cmd[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
-                # TODO It seems to me that this distinction between simple
-                # syscalls and piped syscalls can be removed. Let's try that
-                # soon!
                 # Simple syscall
-                if stdin == None and stdout==Eval.EXITCODE:
+                if stdin == None and not pipeOutput:
                     compl = subprocess.run(cmd)
                     return compl.returncode
                 # Piped syscall
@@ -298,14 +300,16 @@ class Eval:
                 # TODO Is that actually the right approach?
                 else:
                     # a) this is the leftmost syscall of a pipe or
+                    # -> Create the process with stdin=None
                     # b) the previous step of the pipe was a syscall
-                    # -> just create the process
+                    # -> Create the process with stdin=stdin
                     # c) lhs of the pipe was variable or function
-                    # -> create the process and write the value into stdin
-                    case_c = not (stdin==None or                   # a)
-                            isinstance(stdin, _io.BufferedReader)) # b)
+                    # -> Create the process with stdin=PIPE and write the value into stdin
+                    case_a = stdin==None
+                    case_b = isinstance(stdin, _io.BufferedReader)
+                    case_c = not (case_a or case_b)
                     stdin_arg = stdin if not case_c else subprocess.PIPE
-                    stdout_arg = subprocess.PIPE if stdout!=Eval.EXITCODE else None
+                    stdout_arg = subprocess.PIPE if pipeOutput else None
                     proc = subprocess.Popen(
                             cmd, stdin=stdin_arg, stdout=stdout_arg)
                     if case_c:
@@ -318,23 +322,13 @@ class Eval:
                             proc.stdin.write(stdin)
                         else:
                             proc.stdin.write(str(stdin).encode("utf-8"))
-                        proc.stdin.close()
+                        #proc.stdin.close()
                     # Now, after having created this process, we can run the
                     # stdout.close() on the previous process (if there was one)
                     # stdout of the previous is stdin here.
                     if isinstance(stdin, _io.BufferedReader):
                         stdin.close()
-                    # a) output should not be piped
-                    # -> evaluate the subprocess, return what is requested
-                    # b) output should be piped
-                    # -> return the pipe
-                    if stdout==Eval.EXITCODE:
-                        proc.communicate()
-                        return proc.returncode
-                    elif stdout==Eval.VALUE:
-                        return proc.communicate()[0]
-                    else:
-                        return proc.stdout
+                    return proc
         print("bong: {}: command not found".format(cmd[0]))
 
     def call_cd(self, args):
@@ -351,7 +345,7 @@ class Eval:
             print("bong: cd: {}".format(str(e)))
             return 1
 
-    def builtin_func_len(self, val, stdin, stdout):
+    def builtin_func_len(self, val):
         return len(val.args[0])
 
     def push_env(self, new_env):

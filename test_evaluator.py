@@ -40,24 +40,6 @@ class TestEvaluator(unittest.TestCase):
         test_eval_list(self, tests)
 
     def test_pipe(self):
-        # TODO Testing piped subprocesses produced a warning:
-        # /usr/lib/python3.8/subprocess.py:942: ResourceWarning: subprocess 1745 is still running
-        # _warn("subprocess %s is still running" % self.pid,
-        # ResourceWarning: Enable tracemalloc to get the object allocation traceback
-        # Is there a problem?
-        #
-        # This problem seems to be inherent to the python subprocess module.
-        # The respective stackoverflow question is asked here:
-        # https://stackoverflow.com/questions/59444481/how-to-properly-finish-a-piped-python-subprocess
-        #
-        # The problem can be solved by calling Popen.wait() or Popen.communicate()
-        # on all subprocesses, not only the last one. Currently, this is not
-        # implemented in the evaluator because this would require a not-so-nice
-        # rework (passing the popen-objects around).
-        # 
-        # Currently, this is mitigated by suppressing warnings:
-        import warnings
-        warnings.simplefilter("ignore")
         # Since we are not able yet to redirect output, we just run pipelines
         # here that do not produce output
         tests = [
@@ -68,21 +50,16 @@ class TestEvaluator(unittest.TestCase):
         test_eval_list(self, tests)
 
     def test_advanced_pipe(self):
-        # See above: test_pipe()
-        import warnings
-        warnings.simplefilter("ignore")
         # Since we are not able yet to redirect output, we just run pipelines
         # here that do not produce output
-        tests = [
-                'let a = "foo" a | grep foo | /usr/bin/true', 0,
-                'let a = "foo" a | grep bar', 1,
-                'func a() { return "foo" } a() | grep foo | /usr/bin/true', 0,
-                'func a() { return "foo" } a() | grep bar', 1,
-                'let a = 0; echo "foo" | a; a', "foo\n",
-                'let a=0; let b=0; echo "foo\nbar" | grep foo | a; a', "foo\n",
-                'let a=0; let b=0; echo "foo\nbar" | grep foo | grep bar | b; b', "",
-                ]
-        test_eval_list(self, tests)
+        test_eval('let a = "foo" a | grep foo | /usr/bin/true', 0, self)
+        test_eval('let a = "foo" a | grep bar', 1, self)
+        test_eval('func a() { return "foo" } a() | grep foo | /usr/bin/true', 0, self)
+        test_eval('func a() { return "foo" } a() | grep bar', 1, self)
+        test_eval('let a = 0; echo "foo" | a; a', "foo\n", self)
+        test_eval('let a=0; let b=0; echo "foo\nbar" | grep foo | a; a', "foo\n", self)
+        test_eval('let a=0; let b=0; echo "foo\nbar" | grep foo | grep bar | b; b', "", self)
+        test_eval('let a = "foo"; let b = 0; a | grep foo | b; b', "foo\n", self)
 
     def test_builtin_functions(self):
         test_eval('let yes = "/usr/bin/true"; call(yes)', 0, self)
