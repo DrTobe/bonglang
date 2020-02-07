@@ -70,11 +70,9 @@ class TestEvaluator(unittest.TestCase):
         test_eval('let a = "foo"; len(a)', 3, self)
 
     def test_let(self):
-        tests = [
-                "let a = 1337 a", 1337,
-                "let a = 42 let b = a + 1337 b", 1379,
-                ]
-        test_eval_list(self, tests)
+        test_eval("let a = 1337 a", 1337, self)
+        test_eval("let a = 42 let b = a + 1337 b", 1379, self)
+        test_eval("let a,b = 1,0  b", 0, self)
 
     def test_if(self):
         tests = [
@@ -132,6 +130,7 @@ class TestEvaluator(unittest.TestCase):
                 "let a = [1, 2, 3] a[0]", 1,
                 "[1, 2, 3][0]", 1,
                 "\"1, 2, 3\"[0]", "1",
+                "let a,b = 1,0 a,b=b,a a", 0
                 ]
         test_eval_list(self, tests)
 

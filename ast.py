@@ -79,11 +79,20 @@ class Print:
         return "print "+str(self.expr)+";"
 
 class Let:
-    def __init__(self, name, expr):
-        self.name = name
+    def __init__(self, names, expr):
+        self.names = names
         self.expr = expr
     def __str__(self):
-        return "let " + self.name + " = " + str(self.expr)
+        names = ", ".join(self.names)
+        return "let " + names + " = " + str(self.expr)
+
+class ExpressionList:
+    def __init__(self, elements):
+        self.elements = elements
+    def append(self, element):
+        self.elements.append(element)
+    def __str__(self):
+        return ", ".join(map(str,self.elements))
 
 class IfElseStatement:
     def __init__(self, cond, t, e=None):

@@ -25,12 +25,9 @@ class TestParser(unittest.TestCase):
         test_strings(self, testData)
 
     def test_let(self):
-        data = [
-                "let a = 0; let b = 0;", "{\nlet a = 0\nlet b = 0\n}",
-                "let a = 0; let b = 0; a | b", "{\nlet a = 0\nlet b = 0\na | b\n}"
-                ]
-        test_strings_list(self, data)
-
+        test_string(self, "let a = 0; let b = 0;", "{\nlet a = 0\nlet b = 0\n}")
+        test_string(self, "let a = 0; let b = 0; a | b", "{\nlet a = 0\nlet b = 0\na | b\n}")
+        test_string(self, "let a,b = 1,2", "{\nlet a, b = 1, 2\n}")
 
     def test_functioncall(self):
         testData = [
@@ -88,44 +85,39 @@ class TestParser(unittest.TestCase):
         test_strings_list(self, testData)
 
     def test_print(self):
-        testData = [
-                TestData("print 1 + 2", "{\nprint (1+2);\n}"),
-                TestData("print 13 + 37 == 42", "{\nprint ((13+37)==42);\n}")
-                ]
-        test_strings(self, testData)
+        test_string(self, "print 1 + 2", "{\nprint (1+2);\n}"),
+        test_string(self, "print 13 + 37 == 42", "{\nprint ((13+37)==42);\n}")
 
     def test_expression_statement(self):
-        testData = [
-                TestData("1", "{\n1\n}"),
-                TestData("-1", "{\n(-1)\n}"),
-                TestData("true", "{\ntrue\n}"),
-                TestData("!false", "{\n(!false)\n}"),
-                TestData("1 + 2", "{\n(1+2)\n}"),
-                TestData("1 + 2 + 3", "{\n((1+2)+3)\n}"),
-                TestData("1 - 2 - 3", "{\n((1-2)-3)\n}"),
-                TestData("1 + 2 * 3", "{\n(1+(2*3))\n}"),
-                TestData("4 * 2 + 3", "{\n((4*2)+3)\n}"),
-                TestData("1 + 2 ^ 3", "{\n(1+(2^3))\n}"),
-                TestData("1 ^ 2 ^ 3", "{\n(1^(2^3))\n}"),
-                TestData("13.37 + 4.2", "{\n(13.37+4.2)\n}"),
-                TestData("add(1, 2) * 2", "{\n(add(1, 2)*2)\n}"),
-                TestData("true || false && 1 < 2 + 3 * 3 ^ 5" , "{\n(true||(false&&(1<(2+(3*(3^5))))))\n}"),
-                TestData("let a = 1337\n a = 42", "{\nlet a = 1337\n(a=42)\n}"),
-                TestData("[1, 2, 3][0]", "{\n[1, 2, 3][0]\n}"),
-                TestData("\"abc\"[0]", "{\nabc[0]\n}"),
-                TestData("""
+        test_string(self, "1", "{\n1\n}")
+        test_string(self, "-1", "{\n(-1)\n}")
+        test_string(self, "true", "{\ntrue\n}")
+        test_string(self, "!false", "{\n(!false)\n}")
+        test_string(self, "1 + 2", "{\n(1+2)\n}")
+        test_string(self, "1 + 2 + 3", "{\n((1+2)+3)\n}")
+        test_string(self, "1 - 2 - 3", "{\n((1-2)-3)\n}")
+        test_string(self, "1 + 2 * 3", "{\n(1+(2*3))\n}")
+        test_string(self, "4 * 2 + 3", "{\n((4*2)+3)\n}")
+        test_string(self, "1 + 2 ^ 3", "{\n(1+(2^3))\n}")
+        test_string(self, "1 ^ 2 ^ 3", "{\n(1^(2^3))\n}")
+        test_string(self, "13.37 + 4.2", "{\n(13.37+4.2)\n}")
+        test_string(self, "add(1, 2) * 2", "{\n(add(1, 2)*2)\n}")
+        test_string(self, "true || false && 1 < 2 + 3 * 3 ^ 5" , "{\n(true||(false&&(1<(2+(3*(3^5))))))\n}")
+        test_string(self, "let a = 1337\n a = 42", "{\nlet a = 1337\n(a=42)\n}")
+        test_string(self, "[1, 2, 3][0]", "{\n[1, 2, 3][0]\n}")
+        test_string(self, "\"abc\"[0]", "{\nabc[0]\n}")
+        test_string(self, "let a,b = 1,0; a,b = b,a", "{\nlet a, b = 1, 0\n(a, b=b, a)\n}")
+        test_string(self, """
 let a = 1337
 let b = 42
 let c = 31415
 a = b = c = 15
-    """, """{
+    """,               """{
 let a = 1337
 let b = 42
 let c = 31415
 (a=(b=(c=15)))
-}"""),
-                ]
-        test_strings(self, testData)
+}""")
 
 def test_strings(test_class, testData):
     for td in testData:

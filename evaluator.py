@@ -205,55 +205,88 @@ class Eval:
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
-            self.environment.register(node.name)
-            self.environment.set(node.name, self.evaluate(node.expr))
+            # First, evaluate all rhses (those are possibly encapsulated in an 
+            # ExpressionList, so no need to iterate here
+            results = ensureList(self.evaluate(node.expr))
+            # Then, assign results. This order of execution additionally prevents
+            # the rhs of a let statement to use the variables declared on the
+            # left side.
+            if len(node.names) != len(results):
+                raise Exception("number of expressions between rhs and lhs do not match")
+            for name, result in zip(node.names,results):
+                self.environment.register(name)
+                self.environment.set(name, result)
         elif isinstance(node, ast.Array):
             elements = []
             for e in node.elements:
                 elements.append(self.evaluate(e))
             return objects.Array(elements)
+        elif isinstance(node, ast.ExpressionList):
+            results = []
+            for exp in node.elements:
+                results.append(self.evaluate(exp))
+            if len(results)==1:
+                return results[0]
+            return results
         else:
             raise Exception("unknown ast node")
 
     def assign(self, lhs, rhs):
-        # In typical assignments, the rhs is evaluated first (this distinction
-        # is especially necessary if lhs and rhs contain expressions with
-        # possible side-effects and the lhs contains an IndexAccess)
-        #
-        # 1. rhs evaluation: The rhs can be an expression or it can be the
-        # output value of a pipeline.
-        # Therefore, we need to check vs the list of python types that an
-        # Eval.evaluate() call could return.
-        # TODO I feel that there could be a nicer way to do this, but
-        # I don't see it yet.
-        if (isinstance(rhs, bytes) or
-                isinstance(rhs, bool) or
-                isinstance(rhs, int) or
-                isinstance(rhs, str)):
-            # TODO The following distinction is just made so that we can work
-            # nicely with syscall output. Done properly, the value would just
-            # by a bytestream that has to be decoded by the user.
-            if isinstance(rhs, bytes):
-                value = rhs.decode("utf-8")
+        if isinstance(rhs, ast.ExpressionList):
+            rhs = rhs.elements
+        elif not isinstance(rhs, list):
+            rhs = [rhs]
+        if isinstance(lhs, ast.ExpressionList):
+            lhs = lhs.elements
+        elif not isinstance(lhs, list):
+            lhs = [lhs]
+        # First, evaluate all rhses, then assign to all lhses
+        results = []
+        for r in rhs:
+            # In typical assignments, the rhs is evaluated first (this distinction
+            # is especially necessary if lhs and rhs contain expressions with
+            # possible side-effects and the lhs contains an IndexAccess)
+            #
+            # 1. rhs evaluation: The rhs can be an expression or it can be the
+            # output value of a pipeline.
+            # Therefore, we need to check vs the list of python types that an
+            # Eval.evaluate() call could return.
+            # TODO I feel that there could be a nicer way to do this, but
+            # I don't see it yet.
+            if (isinstance(r, bytes) or
+                    isinstance(r, bool) or
+                    isinstance(r, int) or
+                    isinstance(r, str)):
+                # TODO The following distinction is just made so that we can work
+                # nicely with syscall output. Done properly, the value would just
+                # by a bytestream that has to be decoded by the user.
+                if isinstance(r, bytes):
+                    value = r.decode("utf-8")
+                else:
+                    value = r
             else:
-                value = rhs
-        else:
-            value = self.evaluate(rhs)
-        # 2. lhs evaluation: The lhs can be a variable assignment or an
-        # index access which is just handled differently here.
-        if isinstance(lhs, ast.Variable):
-            name = lhs.name
-            self.environment.set(name, value)
-            return value
-        if isinstance(lhs, ast.IndexAccess):
-            index_access = lhs
-            if not isinstance(index_access.lhs, ast.Variable):
-                raise(Exception("Can only index variables"))
-            name = index_access.lhs.name
-            index = self.evaluate(index_access.rhs)
-            self.environment.get(name)[index] = value
-            return value
-        raise Exception("Can only assign to variable or indexed variable")
+                value = self.evaluate(r)
+            results.append(value)
+        if len(results)!=len(lhs):
+            raise Expression("number of elements on lhs and rhs does not match")
+        for l, value in zip(lhs, results):
+            # 2. lhs evaluation: The lhs can be a variable assignment or an
+            # index access which is just handled differently here.
+            if isinstance(l, ast.Variable):
+                name = l.name
+                self.environment.set(name, value)
+            elif isinstance(l, ast.IndexAccess):
+                index_access = l
+                if not isinstance(index_access.lhs, ast.Variable):
+                    raise(Exception("Can only index variables"))
+                name = index_access.lhs.name
+                index = self.evaluate(index_access.rhs)
+                self.environment.get(name)[index] = value
+            else:
+                raise Exception("Can only assign to variable or indexed variable")
+        if len(results)==1:
+            return results[0]
+        return results
 
     def callprogram(self, program, stdin=None, pipeOutput=False):
         # TODO We pass a whole ast.SysCall object to callprogram, only the args
@@ -364,3 +397,8 @@ def isTruthy(value):
     if value == None or value == False:
         return False
     return True
+
+def ensureList(value):
+    if not isinstance(value, list):
+        return [value]
+    return value

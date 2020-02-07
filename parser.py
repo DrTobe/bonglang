@@ -46,7 +46,15 @@ class Parser:
             return self.while_stmt()
         if self.peek().type == token.LBRACE:
             return self.block_stmt()
-        if self.peek().type == token.IDENTIFIER or self.peek().type == token.INT_VALUE or self.peek().type == token.FLOAT_VALUE or self.peek().type == token.BOOL_VALUE or self.peek().type == token.LPAREN or self.peek().type == token.OP_SUB or self.peek().type == token.OP_NEG or self.peek().type == token.LBRACKET or self.peek().type == token.STRING:
+        if (self.peek().type == token.IDENTIFIER or
+                self.peek().type == token.INT_VALUE or
+                self.peek().type == token.FLOAT_VALUE or
+                self.peek().type == token.BOOL_VALUE or
+                self.peek().type == token.LPAREN or
+                self.peek().type == token.OP_SUB or
+                self.peek().type == token.OP_NEG or
+                self.peek().type == token.LBRACKET or
+                self.peek().type == token.STRING):
             return self.expression_stmt()
         # Special cases: Syscalls in current directory like './foo' or with
         # absolute path like '/foo/bar'
@@ -118,23 +126,29 @@ class Parser:
         return ast.Return(expr)
 
     def expression_stmt(self):
-        expr = self.expression()
+        expr = self.assignment()
         self.match(token.SEMICOLON)
         return expr
 
     def let_stmt(self):
         if not self.match(token.LET):
-            raise Exception("expected print statement")
+            raise Exception("expected let statement")
         if not self.match(token.IDENTIFIER):
-            raise Exception("FUCK")
-        name = self.peek(-1).lexeme
-        # TODO optional: check if already registered
-        self.symbol_table.register(name)
+            raise Exception("At least one identifier must be specified.")
+        names = [self.peek(-1).lexeme]
+        while self.match(token.COMMA):
+            self.check_eof("Another identifier expected")
+            if not self.match(token.IDENTIFIER):
+                raise Exception("expected identifier as parameter")
+            names.append(self.peek(-1).lexeme)
+        for name in names:
+            # TODO optional: check if already registered
+            self.symbol_table.register(name)
         if not self.match(token.ASSIGN):
-            raise Exception("FUCK2")
-        expr = self.expression()
+            raise Exception("Empty let statements are not supported. Always assign a value!")
+        expr = self.assignment()
         self.match(token.SEMICOLON)
-        return ast.Let(name, expr)
+        return ast.Let(names, expr)
 
     def if_stmt(self):
         if not self.match(token.IF):
@@ -179,15 +193,15 @@ class Parser:
         self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
-    def expression(self):
-        return self.assignment()
-
     def assignment(self):
-        lhs = self.parse_or()
+        lhs = ast.ExpressionList(self.parse_commata_expressions())
         if self.match(token.ASSIGN):
             rhs = self.assignment()
             lhs = ast.BinOp(lhs, "=", rhs)
         return lhs
+
+    def expression(self):
+        return self.parse_or()
 
     def parse_or(self):
         lhs = self.parse_and()
@@ -235,7 +249,6 @@ class Parser:
         elements = [leftmost]
         while self.match(token.BONG):
             elements.append(self.addition())
-            #lhs = ast.Pipe(lhs, self.addition())
         pipeline = ast.Pipeline(elements, False)
         if self.match(token.AMPERSAND):
             pipeline.nonblocking = True
@@ -360,7 +373,6 @@ class Parser:
         while self.match(token.COMMA):
             elements.append(self.expression())
         return elements
-
 
     def syscall_arguments(self, name):
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
