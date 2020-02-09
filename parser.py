@@ -131,6 +131,14 @@ class Parser:
         return expr
 
     def let_stmt(self):
+        names = self.let_lhs()
+        if not self.match(token.ASSIGN):
+            raise Exception("Empty let statements are not supported. Always assign a value!")
+        expr = self.assignment()
+        self.match(token.SEMICOLON)
+        return ast.Let(names, expr)
+    # splitted so that this part can be reused for pipelines
+    def let_lhs(self):
         if not self.match(token.LET):
             raise Exception("expected let statement")
         if not self.match(token.IDENTIFIER):
@@ -144,11 +152,7 @@ class Parser:
         for name in names:
             # TODO optional: check if already registered
             self.symbol_table.register(name)
-        if not self.match(token.ASSIGN):
-            raise Exception("Empty let statements are not supported. Always assign a value!")
-        expr = self.assignment()
-        self.match(token.SEMICOLON)
-        return ast.Let(names, expr)
+        return names
 
     def if_stmt(self):
         if not self.match(token.IF):
@@ -248,7 +252,16 @@ class Parser:
             return leftmost
         elements = [leftmost]
         while self.match(token.BONG):
-            elements.append(self.addition())
+            if self.peek().type == token.LET:
+                names = self.let_lhs()
+                elements.append(ast.PipelineLet(names))
+            elif (self.peek().type == token.IDENTIFIER and
+                    self.peek(1).type == token.COMMA):
+                # Like this, we can not have more "complicated" variables
+                # (index-access or whatever) that we want to assign to.
+                elements.append(ast.ExpressionList(self.parse_commata_expressions()))
+            else:
+                elements.append(self.addition())
         pipeline = ast.Pipeline(elements, False)
         if self.match(token.AMPERSAND):
             pipeline.nonblocking = True

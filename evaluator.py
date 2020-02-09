@@ -143,8 +143,8 @@ class Eval:
                 process = self.callprogram(syscall, stdin, True)
                 processes.append(process)
                 stdin = process.stdout
-            pipeLastOutput = assignto!=None
-            lastProcess = self.callprogram(syscalls[-1], stdin, pipeLastOutput)
+            numOutputPipes = 0 if assignto==None else self.numInputsExpected(assignto)
+            lastProcess = self.callprogram(syscalls[-1], stdin, numOutputPipes)
             # So, there is this single case that is different from everything else
             # and that needs special treatment:
             # Whenever the first process is opened with stdin=PIPE, we must
@@ -156,7 +156,7 @@ class Eval:
             for process in processes:
                 process.wait()
             if assignto != None:
-                self.assign(assignto, outstreams[0])
+                self.assign(assignto, list(outstreams[:numOutputPipes]))
                 return lastProcess.returncode
             else:
                 return lastProcess.returncode
@@ -238,6 +238,15 @@ class Eval:
             rhs = [rhs]
         if isinstance(lhs, ast.ExpressionList):
             lhs = lhs.elements
+        elif isinstance(lhs, ast.PipelineLet):
+            let = lhs
+            lhs = []
+            for name in let.names:
+                # It's not strictly correct to already register the variable here
+                # because they could be accessed during evaluation of the rhses
+                # but it is the end of a pipeline so the rhses are already evaled.
+                self.environment.register(name)
+                lhs.append(ast.Variable(name)) # ugly :(
         elif not isinstance(lhs, list):
             lhs = [lhs]
         # First, evaluate all rhses, then assign to all lhses
@@ -268,7 +277,7 @@ class Eval:
                 value = self.evaluate(r)
             results.append(value)
         if len(results)!=len(lhs):
-            raise Expression("number of elements on lhs and rhs does not match")
+            raise Exception("number of elements on lhs and rhs does not match")
         for l, value in zip(lhs, results):
             # 2. lhs evaluation: The lhs can be a variable assignment or an
             # index access which is just handled differently here.
@@ -288,7 +297,15 @@ class Eval:
             return results[0]
         return results
 
-    def callprogram(self, program, stdin=None, pipeOutput=False):
+    def numInputsExpected(self, assignto):
+        if isinstance(assignto, ast.PipelineLet):
+            return len(assignto.names)
+        elif isinstance(assignto, ast.ExpressionList):
+            return len(assignto.elements)
+        else: # Currently only used in pipelines, it's a single variable then
+            return 1
+
+    def callprogram(self, program, stdin=None, numOutputPipes=0):
         # TODO We pass a whole ast.SysCall object to callprogram, only the args
         # list would be enough. Should we change that? This would simplify this
         # method itself and calling builtin functions.
@@ -302,7 +319,7 @@ class Eval:
             cmd.append(arg)
         # Check bong builtins first. Until now, only 'cd' defined
         if cmd[0] == "cd":
-            if stdin != None or pipeOutput:
+            if stdin != None or numOutputPipes != 0:
                 print("bong: cd: can not be piped")
                 # TODO Here, the calling pipe will crash :( return something
                 # usable instead!
@@ -321,7 +338,7 @@ class Eval:
                 filepath = cmd[0]
             if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
                 # Simple syscall
-                if stdin == None and not pipeOutput:
+                if stdin == None and numOutputPipes == 0:
                     compl = subprocess.run(cmd)
                     return compl.returncode
                 # Piped syscall
@@ -343,9 +360,10 @@ class Eval:
                     case_b = isinstance(stdin, _io.BufferedReader)
                     case_c = not (case_a or case_b)
                     stdin_arg = stdin if not case_c else subprocess.PIPE
-                    stdout_arg = subprocess.PIPE if pipeOutput else None
+                    stdout_arg = subprocess.PIPE if numOutputPipes>0 else None
+                    stderr_arg = subprocess.PIPE if numOutputPipes>1 else None
                     proc = subprocess.Popen(
-                            cmd, stdin=stdin_arg, stdout=stdout_arg)
+                            cmd, stdin=stdin_arg, stdout=stdout_arg, stderr=stderr_arg)
                     if case_c:
                         # Prevent possible bytestreams from being interpreted
                         # as strings. Currently 2019-12-22, this is not strictly

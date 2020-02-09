@@ -126,6 +126,13 @@ class Pipeline:
             pipeline += " &"
         return pipeline
 
+class PipelineLet:
+    def __init__(self, names):
+        self.names = names
+    def __str__(self):
+        names = ", ".join(self.names)
+        return "let " + names
+
 class SysCall:
     def __init__(self, args):
         self.args = args
