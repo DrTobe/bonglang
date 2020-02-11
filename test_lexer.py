@@ -140,7 +140,7 @@ def test_lexemes(test_class, sourcecode, expectedValues):
         test_class.assertEqual(expectedValue, tok.lexeme, "expected \"" + expectedValue + "\",  but got: \"" + str(tok.lexeme) + "\"")
 
 def createLexer(sourcecode):
-    return lexer.Lexer(sourcecode)
+    return lexer.Lexer(sourcecode, "test_lexer input")
 
 def run():
     unittest.main()

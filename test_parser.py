@@ -136,7 +136,7 @@ def test_string(test_class, sourcecode, expectedStr):
     test_class.assertEqual(program_string, expectedStr, "Expected \"" + expectedStr + "\", but got \" " + program_string + "\"")
 
 def createParser(sourcecode):
-    return parser.Parser(lexer.Lexer(sourcecode))
+    return parser.Parser(lexer.Lexer(sourcecode, "test_parser.py input"))
 
 def translate(sourcecode):
     return createParser(sourcecode).compile()

@@ -2,14 +2,28 @@ import token_def as token
 from token_def import Token
 
 class Lexer:
-    def __init__(self, code):
+    def __init__(self, code, filepath):
         self.code = code
         self.current_pos = 0
         self.last_token = None
         self.had_whitespace = False
+        # Fields for reporting (error) positions
+        # For line and col we use an ever-growing list that let's us look
+        # back in time
+        self.filepath = filepath
+        self.line = [1]
+        self.col = [1]
 
-    def create_token(self, typ, lexeme=None):
-        self.last_token = Token(typ, self.had_whitespace, lexeme)
+    def create_token(self, typ, length=1, lexeme=None):
+        # The ever-growing lits in the past is [current, previous, ...]
+        # The last character that was part of the token we currently generate
+        # was just "matched-away" or removed with next(). Thus, for length==1,
+        # we do not need index 0 but index 1 instead.
+        line = self.line[length]
+        col = self.col[length]
+        # DEBUG: Print what kinds of tokens are generated
+        #print(typ, self.filepath, line, col, length, lexeme)
+        self.last_token = Token(typ, self.filepath, line, col, length, self.had_whitespace, lexeme)
         self.had_whitespace = False
         return self.last_token
 
@@ -75,27 +89,27 @@ class Lexer:
             return self.create_token(token.RBRACKET)
         if c == "=":
             if self.match("="):
-                return self.create_token(token.OP_EQ)
+                return self.create_token(token.OP_EQ, 2)
             return self.create_token(token.ASSIGN)
         if c == "!":
             if self.match("="):
-                return self.create_token(token.OP_NEQ)
+                return self.create_token(token.OP_NEQ, 2)
             return self.create_token(token.OP_NEG)
         if c == "<":
             if self.match("="):
-                return self.create_token(token.OP_LE)
+                return self.create_token(token.OP_LE, 2)
             return self.create_token(token.OP_LT)
         if c == ">":
             if self.match("="):
-                return self.create_token(token.OP_GE)
+                return self.create_token(token.OP_GE, 2)
             return self.create_token(token.OP_GT)
         if c == "&":
             if self.match("&"):
-                return self.create_token(token.OP_AND)
+                return self.create_token(token.OP_AND, 2)
             return self.create_token(token.AMPERSAND)
         if c == "|":
             if self.match("|"):
-                return self.create_token(token.OP_OR)
+                return self.create_token(token.OP_OR, 2)
             return self.create_token(token.BONG)
         if is_number(c):
             lex = c
@@ -105,36 +119,36 @@ class Lexer:
                 lex += self.next() # == "."
                 while is_number(self.peek()):
                     lex += self.next()
-                return self.create_token(token.FLOAT_VALUE, lex)
-            return self.create_token(token.INT_VALUE, lex)
+                return self.create_token(token.FLOAT_VALUE, len(lex), lex)
+            return self.create_token(token.INT_VALUE, len(lex), lex)
         if is_alpha(c):
             lex = c
             while is_alpha(self.peek()) or self.peek()=="_":
                 lex += self.next()
             if lex == "print":
-                return self.create_token(token.PRINT)
+                return self.create_token(token.PRINT, len(lex), lex)
             if lex == "true" or lex == "false":
-                return self.create_token(token.BOOL_VALUE, lex)
+                return self.create_token(token.BOOL_VALUE, len(lex), lex)
             if lex == "let":
-                return self.create_token(token.LET)
+                return self.create_token(token.LET, len(lex), lex)
             if lex == "if":
-                return self.create_token(token.IF)
+                return self.create_token(token.IF, len(lex), lex)
             if lex == "else":
-                return self.create_token(token.ELSE)
+                return self.create_token(token.ELSE, len(lex), lex)
             if lex == "while":
-                return self.create_token(token.WHILE)
+                return self.create_token(token.WHILE, len(lex), lex)
             if lex == "func":
-                return self.create_token(token.FUNC)
+                return self.create_token(token.FUNC, len(lex), lex)
             if lex == "return":
-                return self.create_token(token.RETURN)
-            return self.create_token(token.IDENTIFIER, lex)
+                return self.create_token(token.RETURN, len(lex), lex)
+            return self.create_token(token.IDENTIFIER, len(lex), lex)
         if "\"" == c: # begin of a string
             lex = ""
             while not self.match("\""):
                 lex += self.next()
-            return self.create_token(token.STRING, lex)
+            return self.create_token(token.STRING, len(lex)+2, lex)
         else:
-            return self.create_token(token.OTHER, c)
+            return self.create_token(token.OTHER, 1, c)
 
     def peek(self, steps=0):
         pos = self.current_pos + steps
@@ -143,6 +157,14 @@ class Lexer:
     def next(self):
         c = self.peek()
         self.current_pos += 1
+        if is_newline(c):
+            newline = self.line[0]+1
+            newcol = 1
+        else:
+            newline = self.line[0]
+            newcol = self.col[0]+1
+        self.line = [newline] + self.line
+        self.col = [newcol] + self.col
         return c
 
     def match(self, compare):

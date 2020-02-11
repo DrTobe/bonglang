@@ -11,7 +11,7 @@ def main():
     if len(arguments) >= 2:
         with open(arguments[1]) as f:
             code = f.read()
-            l = lexer.Lexer(code)
+            l = lexer.Lexer(code, arguments[1])
             p = parser.Parser(l)
             program = p.compile()
             evaluator.Eval().evaluate(program)

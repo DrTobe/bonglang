@@ -148,7 +148,7 @@ def test_eval(code, expected, test_class):
     test_class.assertEqual(evaluated, expected, "Expected {} but got {}".format(expected, evaluated))
     
 def evaluate(code, printer):
-    l = Lexer(code)
+    l = Lexer(code, "test_evaluator.py input")
     p = Parser(l)
     e = Eval(printer)
     program = p.compile()

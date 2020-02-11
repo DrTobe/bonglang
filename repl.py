@@ -147,7 +147,7 @@ def main():
                 with open(inp.split(" ")[1]) as f:
                     inp = f.read()
             code += inp + "\n"
-            l = Lexer(code)
+            l = Lexer(code, "repl input")
             # TODO I think we need to return the current symtable / scope from
             # p.compile() or evakuator.evakuate() in the future so that we
             # use the correct one after having opened a new scope. And for

@@ -1,8 +1,12 @@
 class Token:
-    def __init__(self, typ, prec_by_space = False, lexeme = None):
+    def __init__(self, typ, filepath, line, col, length, prec_by_space = False, lexeme = None):
         self.type = typ
         self.prec_by_space = prec_by_space
         self.lexeme = lexeme
+        self.filepath = filepath
+        self.line = line
+        self.col = col
+        self.length = length
     def __str__(self):
         if self.lexeme != None:
             return self.type + "(" + str(self.lexeme) + ")"

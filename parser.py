@@ -3,6 +3,7 @@ import ast
 import symbol_table
 import environment
 import evaluator # Required for access to the builtin variables
+import sys # To print on stderr
 
 class Parser:
     def __init__(self, lexer, symtable=None, functions=None):
@@ -22,10 +23,18 @@ class Parser:
 
     def compile(self):
         statements = []
-        while self.peek().type != token.EOF:
-            stmt = self.top_level_stmt()
-            if stmt != None:
-                statements.append(stmt)
+        try:
+            while self.peek().type != token.EOF:
+                stmt = self.top_level_stmt()
+                if stmt != None:
+                    statements.append(stmt)
+        except ParseException as e:
+            t = self.peek(e.offset)
+            if t.lexeme != None:
+                lexeme = t.lexeme
+            else:
+                lexeme = t.type
+            print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
         return ast.Program(statements, self.functions)
 
     def top_level_stmt(self):
@@ -66,26 +75,26 @@ class Parser:
                 self.peek(1).type==token.DOT and
                 self.peek(2).type==token.OP_DIV):
             return self.expression_stmt()
-        raise(Exception("unknown statement found: {}".format(str(self.peek()))))
+        raise ParseException("Unknown statement found.")
 
     def parse_function_definition(self):
         if not self.match(token.FUNC):
-            raise Exception("expected function definition")
+            raise Exception("Expected function definition.")
 
         if not self.match(token.IDENTIFIER):
-            raise Exception("expected function name")
+            raise ParseException("Expected function name.")
 
         name = self.peek(-1).lexeme
         if not self.match(token.LPAREN):
-            raise Exception("expected ( to start the parameter list")
+            raise ParseException("Expected ( to start the parameter list.")
 
         parameters = self.parse_parameters()
 
         if not self.match(token.RPAREN):
-            raise Exception("expected ) to end the parameter list")
+            raise ParseException("Expected ) to end the parameter list.")
 
         if not self.peek().type == token.LBRACE:
-            raise Exception("expected function body")
+            raise ParseException("Expected function body.")
 
         original_symbol_table = self.symbol_table
         func_symbol_table = symbol_table.SymbolTable()
@@ -112,13 +121,13 @@ class Parser:
             self.check_eof("Another parameter expected")
             p = self.peek()
             if not self.match(token.IDENTIFIER):
-                raise Exception("expected identifier as parameter")
+                raise ParseException("Expected identifier as parameter.")
             params.append(p.lexeme)
         return params
 
     def return_stmt(self):
         if not self.match(token.RETURN):
-            raise Exception("expected return statement")
+            raise Exception("Expected return statement.")
         if self.match(token.SEMICOLON):
             return ast.Return()
         expr = self.expression()
@@ -133,21 +142,21 @@ class Parser:
     def let_stmt(self):
         names = self.let_lhs()
         if not self.match(token.ASSIGN):
-            raise Exception("Empty let statements are not supported. Always assign a value!")
+            raise ParseException("Empty let statements are not supported. Always assign a value!")
         expr = self.assignment()
         self.match(token.SEMICOLON)
         return ast.Let(names, expr)
     # splitted so that this part can be reused for pipelines
     def let_lhs(self):
         if not self.match(token.LET):
-            raise Exception("expected let statement")
+            raise Exception("Expected let statement.")
         if not self.match(token.IDENTIFIER):
-            raise Exception("At least one identifier must be specified.")
+            raise ParseException("At least one identifier must be specified.")
         names = [self.peek(-1).lexeme]
         while self.match(token.COMMA):
-            self.check_eof("Another identifier expected")
+            self.check_eof("Another identifier expected.")
             if not self.match(token.IDENTIFIER):
-                raise Exception("expected identifier as parameter")
+                raise ParseException("Another identifier expected.")
             names.append(self.peek(-1).lexeme)
         for name in names:
             # TODO optional: check if already registered
@@ -156,7 +165,7 @@ class Parser:
 
     def if_stmt(self):
         if not self.match(token.IF):
-            raise Exception("expected if")
+            raise Exception("Expected if.")
         cond = self.expression()
         t = self.block_stmt()
         e = None
@@ -169,31 +178,31 @@ class Parser:
 
     def while_stmt(self):
         if not self.match(token.WHILE):
-            raise(Exception("expected while"))
+            raise Exception("Expected while.")
         cond = self.expression()
         t = self.block_stmt()
         return ast.WhileStatement(cond, t)
 
     def print_stmt(self):
         if not self.match(token.PRINT):
-            raise(Exception("expected print statement"))
+            raise Exception("Expected print statement.")
         res = ast.Print(self.expression())
         self.match(token.SEMICOLON)
         return res
 
     def block_stmt(self):
-        self.check_eof("expected { for block statement")
+        self.check_eof("Expected { for block statement.")
         if not self.match(token.LBRACE):
-            raise(Exception("expected { for block statement"))
+            raise ParseException("Expected { for block statement.")
         block_symbol_table = symbol_table.SymbolTable(self.symbol_table)
         self.symbol_table = block_symbol_table
         statements = []
         while self.peek().type != token.RBRACE:
-            self.check_eof("expected statement for block body")
+            self.check_eof("Expected statement for block body.")
             statements.append(self.stmt())
         self.check_eof("missing } for block statement")
         if not self.match(token.RBRACE):
-            raise(Exception("missing } for block statement"))
+            raise ParseException("Missing } for block statement.")
         self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
@@ -242,7 +251,7 @@ class Parser:
             elif prev.type == token.OP_LE:
                 op = "<="
             else:
-                raise Exception("assertion failed == > < !=")
+                raise Exception("Assertion failed \"== > < !=\".")
             lhs = ast.BinOp(lhs, op, rhs)
         return lhs
 
@@ -277,7 +286,7 @@ class Parser:
             elif prev.type == token.OP_SUB:
                 op = "-"
             else:
-                raise Exception("assertion failed: +-")
+                raise Exception("Assertion failed: \"+-\".")
             lhs = ast.BinOp(lhs, op, rhs)
         return lhs
 
@@ -293,7 +302,7 @@ class Parser:
             elif prev.type == token.OP_MOD:
                 op = "%"
             else:
-                raise Exception("assertion failed: */%")
+                raise Exception("Assertion failed: */%")
             lhs = ast.BinOp(lhs, op, rhs)
         return lhs
 
@@ -314,10 +323,10 @@ class Parser:
     def index_access(self):
         lhs = self.primary()
         if self.match(token.LBRACKET):
-            self.check_eof("missing expression for indexing")
+            self.check_eof("Missing expression for indexing.")
             rhs = self.expression()
             if not self.match(token.RBRACKET):
-                raise(Exception("missing ] for indexing"))
+                raise ParseException("Missing ] for indexing.")
             lhs = ast.IndexAccess(lhs, rhs)
         return lhs
 
@@ -335,7 +344,7 @@ class Parser:
                 func_name = self.peek(-2).lexeme
                 arguments = self.parse_arguments()
                 if not self.match(token.RPAREN):
-                    raise Exception("missing ) on function call")
+                    raise ParseException("Missing ) on function call.")
                 return ast.FunctionCall(func_name, arguments)
             if self.symbol_table.exists(self.peek(-1).lexeme):
                 return ast.Variable(self.peek(-1).lexeme)
@@ -364,16 +373,16 @@ class Parser:
         if self.match(token.LPAREN):
             exp = self.expression()
             if not self.match(token.RPAREN):
-                raise Exception("missing closing parenthesis )")
+                raise ParseException("Missing closing parenthesis ).")
             return exp
         if self.match(token.LBRACKET):
             if self.match(token.RBRACKET):
                 return ast.Array([])
             elements = self.parse_commata_expressions()
             if not self.match(token.RBRACKET):
-                raise Exception("expected ]")
+                raise ParseException("Expected ].")
             return ast.Array(elements)
-        raise Exception("integer or () expected")
+        raise ParseException("Integer or () expected.")
 
     def parse_arguments(self):
         if self.peek().type == token.RPAREN:
@@ -435,12 +444,12 @@ class Parser:
     def peek(self, steps=0):
         if steps >= 0:
             if steps >= Parser.AHEAD:
-                raise(Exception("Looking ahead too far!"))
+                raise Exception("Looking ahead too far!")
             return self.next_tokens[steps]
         else:
             steps = -1*steps - 1
             if steps >= Parser.BACK:
-                raise(Exception("Looking back too far!"))
+                raise Exception("Looking back too far!")
             return self.past_tokens[steps]
 
     def next(self):
@@ -458,6 +467,17 @@ class Parser:
                 self.next()
                 return True
         return False
+
+# Custom exception for parser errors.
+# The (negative) offset is used to specify which token (in the past) describes
+# the error position best.
+class ParseException(Exception):
+    def __init__(self, msg, offset=0):
+        super().__init__(self, msg)
+        self.msg = msg
+        self.offset = offset
+    def __str__(self):
+        return super().__str__()
 
 # Exception that tells us that EOF was found in a situation where we did
 # not expect it. This is used advantageous for multi-line statements
