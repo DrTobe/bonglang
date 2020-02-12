@@ -29,6 +29,7 @@ class Parser:
                 if stmt != None:
                     statements.append(stmt)
         except ParseException as e:
+            statements = [] # In case of syntax error, nothing should be executed
             t = self.peek(e.offset)
             if t.lexeme != None:
                 lexeme = t.lexeme
