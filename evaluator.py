@@ -326,8 +326,11 @@ class Eval:
                 return None
             return self.call_cd(cmd)
         path_var = os.environ['PATH'].split(':')
-        # Special case: Syscalls with relative or absolute path ('./foo', '../foo' and '/foo/bar')
-        if cmd[0].startswith('./') or cmd[0].startswith('../') or cmd[0].startswith('/'):
+        # Special case: Syscalls with relative or absolute path ('./foo', '../foo', '/foo/bar', 'foo/bar')
+        if (cmd[0].startswith('./') or
+                cmd[0].startswith('../') or
+                cmd[0].startswith('/') or
+                '/' in cmd[0]):
             path_var = [""]
         for path in path_var:
             if len(path) > 0:
