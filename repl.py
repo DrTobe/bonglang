@@ -174,6 +174,15 @@ def main():
                 #print(str(evaluator.environment))
             except UnexpectedEof as e:
                 pass
+        # Catch <Ctrl-C> so that we can abort running programs but bong
+        # itself is not stopped.
+        except KeyboardInterrupt as e:
+            # Reset current input (this is normally done after
+            # evaluator.evaluate()) so that we do not start multiline input
+            code = ""
+            # Nicer output when <Ctrl-C> is pressed whilst expecting
+            # user input
+            print()
         except Exception as e:
             print("you fucked up: " + str(e)) 
             print(traceback.format_exc())
