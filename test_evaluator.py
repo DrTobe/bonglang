@@ -19,13 +19,17 @@ class TestEvaluator(unittest.TestCase):
         test_eval_list(self, tests)
 
     def test_return(self):
-        tests = [
-                "return\n", objects.ReturnValue(),
-                "return 1337", objects.ReturnValue(1337),
-                "return 21 * 2", objects.ReturnValue(42),
-                "return 21 * 2; 13.37", objects.ReturnValue(42),
-                ]
-        test_eval_list(self, tests)
+        self.single_return_test("return\n", None)
+        self.single_return_test("return 1337", 1337)
+        self.single_return_test("return 21 * 2", 42)
+        self.single_return_test("return 21 * 2; 13.37", 42)
+    def single_return_test(self, code, expected_value):
+        try:
+            x = evaluate(code, self.printer)
+            self.assertEqual(True, False, "Expected 'return' to raise a SystemExit exception.")
+        except SystemExit as e:
+            if expected_value != None:
+                self.assertEqual(e.code, expected_value, "Expected return value {} but got {}".format(expected_value, e.code))
 
     def test_syscall(self):
         # TODO output should be redirected somewhere to reduce testing output

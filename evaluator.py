@@ -26,7 +26,6 @@ class Eval:
                 "len": self.builtin_func_len,
                 }
 
-    # Eval.EXITCODE -> "name 'Eval' is not defined" ... But why does it work?
     def evaluate(self, node):
         if isinstance(node, ast.Program):
             for key, value in node.functions.values.items():
@@ -36,15 +35,19 @@ class Eval:
             res = None
             for stmt in node.statements:
                 res = self.evaluate(stmt)
-                if isinstance(res, objects.ReturnValue):
-                    break
+                if isinstance(res, ReturnValue):
+                    # ast.Program is the top-level-node, return means exit then
+                    # https://docs.python.org/3/library/sys.html#sys.exit says:
+                    # int -> int, Null -> 0, other -> 1
+                    # This behaviour seems reasonable here
+                    sys.exit(res.value)
             return res
         if isinstance(node, ast.Block):
             self.push_new_env()
             result = None
             for stmt in node.stmts:
                 result = self.evaluate(stmt)
-                if isinstance(result, objects.ReturnValue):
+                if isinstance(result, ReturnValue):
                     break
             self.pop_env()
             return result
@@ -59,14 +62,14 @@ class Eval:
             ret = None
             while isTruthy(self.evaluate(node.cond)):
                 ret = self.evaluate(node.t)
-                if isinstance(ret, objects.ReturnValue):
+                if isinstance(ret, ReturnValue):
                     break
             return ret
         if isinstance(node, ast.Return):
             if node.result == None:
-                return objects.ReturnValue()
+                return ReturnValue()
             result = self.evaluate(node.result)
-            return objects.ReturnValue(result)
+            return ReturnValue(result)
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
@@ -180,7 +183,7 @@ class Eval:
                 for a in node.args:
                     args.append(self.evaluate(a))
                 result = self.builtin_functions[node.name](ast.SysCall(args))
-                if isinstance(result, objects.ReturnValue):
+                if isinstance(result, ReturnValue):
                     return result.value
                 return result
             function = self.functions.get(node.name)
@@ -197,7 +200,7 @@ class Eval:
                 self.environment.set(param, args[i])
             result = self.evaluate(function.body)
             self.pop_env()
-            if isinstance(result, objects.ReturnValue):
+            if isinstance(result, ReturnValue):
                 return result.value
             return result
         elif isinstance(node, ast.SysCall):
@@ -423,3 +426,21 @@ def ensureList(value):
     if not isinstance(value, list):
         return [value]
     return value
+
+class ReturnValue:
+    def __init__(self, value=None):
+        self.value = value
+    def __eq__(self, other):
+        if other == None: # Comparing to None should be possible without error message
+            return False
+        if not isinstance(other, ReturnValue):
+            print("dont compare this")
+            return False
+        return self.value == other.value
+    def __str__(self):
+        result = "ReturnValue"
+        if self.value != None:
+            result += " "
+            result += str(self.value)
+        return result
+

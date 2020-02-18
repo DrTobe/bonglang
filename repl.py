@@ -164,11 +164,6 @@ def main():
                 if evaluated != None:
                     if config_print_results:
                         print(str(evaluated))
-                    if isinstance(evaluated, objects.ReturnValue):
-                        exitcode = 0
-                        if evaluated.value != None:
-                            exitcode = evaluated.value
-                        sys.exit(exitcode)
                 # Debugging output
                 #print(str(symtable))
                 #print(str(evaluator.environment))
