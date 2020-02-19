@@ -1,9 +1,16 @@
+import bongtypes
+import typing
+
 class SymbolTable:
     def __init__(self, parent=None):
         self.parent = parent
         self.names = {}
     def register(self, name):
+        if name in self.names:
+            raise Exception("cannot redefine " + name)
         self.names[name] = Symbol()
+    def remove(self, name):
+        self.names.pop(name, None)
     def contains(self, name):
         return name in self.names
     def exists(self, name):
@@ -18,6 +25,8 @@ class SymbolTable:
         if self.parent != None:
             return self.parent.get(name)
         raise(Exception("symbol {} does not exist in table".format(name)))
+    def __getitem__(self, name):
+        return self.get(name)
     def __str__(self):
         x = "SymbolTable "
         if self.parent != None:
@@ -30,5 +39,5 @@ class SymbolTable:
 
 class Symbol:
     def __init__(self):
-        self.typ = None
-        self.value = None
+        self.typ : typing.Optional[bongtypes.BaseType] = None
+        #self.value = None

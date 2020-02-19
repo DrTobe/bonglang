@@ -4,6 +4,8 @@ import symbol_table
 import environment
 import evaluator # Required for access to the builtin variables
 import sys # To print on stderr
+import bongtypes
+import typing
 
 class Parser:
     def __init__(self, lexer, symtable=None, functions=None):
@@ -17,11 +19,11 @@ class Parser:
             if key not in self.symbol_table.names:
                 self.symbol_table.register(key)
         if functions == None:
-            self.functions = environment.Environment()
+            self.functions : environment.Environment= environment.Environment()
         else:
             self.functions = functions
 
-    def compile(self):
+    def compile(self) -> ast.Program:
         statements = []
         try:
             while self.peek().type != token.EOF:
@@ -38,12 +40,13 @@ class Parser:
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
         return ast.Program(statements, self.functions)
 
-    def top_level_stmt(self):
+    def top_level_stmt(self) -> typing.Optional[ast.BaseNode]:
         if self.peek().type == token.FUNC:
-            return self.parse_function_definition()
+            self.parse_function_definition()
+            return None
         return self.stmt()
 
-    def stmt(self):
+    def stmt(self) -> ast.BaseNode:
         if self.peek().type == token.PRINT:
             return self.print_stmt()
         if self.peek().type == token.LET:
@@ -78,7 +81,7 @@ class Parser:
             return self.expression_stmt()
         raise ParseException("Unknown statement found.")
 
-    def parse_function_definition(self):
+    def parse_function_definition(self) -> None:
         if not self.match(token.FUNC):
             raise Exception("Expected function definition.")
 
@@ -86,6 +89,8 @@ class Parser:
             raise ParseException("Expected function name.")
 
         name = self.peek(-1).lexeme
+        if self.symbol_table.exists(name):
+            raise ParseException("Name '{}' already exists in symbol table. Function definition impossible.".format(name))
         if not self.match(token.LPAREN):
             raise ParseException("Expected ( to start the parameter list.")
 
@@ -108,11 +113,11 @@ class Parser:
         self.functions.register(name)
         self.functions.set(name, func)
         original_symbol_table.register(name)
-        # todo, set type to function in symbol table
+        original_symbol_table[name].typ = bongtypes.Function()
         return None # function definition is in the symbol table, so we don't need to return it
 
-    def parse_parameters(self):
-        params = []
+    def parse_parameters(self) -> typing.List[str]:
+        params : typing.List[str]= []
         self.check_eof("Parameter list expected")
         p = self.peek()
         if not self.match(token.IDENTIFIER):
@@ -126,7 +131,7 @@ class Parser:
             params.append(p.lexeme)
         return params
 
-    def return_stmt(self):
+    def return_stmt(self) -> ast.Return:
         if not self.match(token.RETURN):
             raise Exception("Expected return statement.")
         if self.match(token.SEMICOLON):
@@ -135,20 +140,29 @@ class Parser:
         self.match(token.SEMICOLON)
         return ast.Return(expr)
 
-    def expression_stmt(self):
+    def expression_stmt(self) -> ast.BaseNode:
         expr = self.assignment()
         self.match(token.SEMICOLON)
         return expr
 
-    def let_stmt(self):
-        names = self.let_lhs()
-        if not self.match(token.ASSIGN):
-            raise ParseException("Empty let statements are not supported. Always assign a value!")
-        expr = self.assignment()
+    def let_stmt(self) -> ast.Let:
+        names : typing.List[str] = self.let_lhs()
+        try:
+            if not self.match(token.ASSIGN):
+                raise ParseException("Empty let statements are not supported. Always assign a value!")
+            expr : ast.BaseNode = self.assignment()
+        # TODO The following cleans up if parsing this let statement fails
+        # but nevertheless, we can end up in errors when an evaluation error
+        # or a typecheck error occurs. So, we need a different approach for
+        # cleaning up the parser's internal state after subsequent errors.
+        except ParseException as e:
+            for name in names:
+                self.symbol_table.remove(name)
+            raise
         self.match(token.SEMICOLON)
         return ast.Let(names, expr)
     # splitted so that this part can be reused for pipelines
-    def let_lhs(self):
+    def let_lhs(self) -> typing.List[str]:
         if not self.match(token.LET):
             raise Exception("Expected let statement.")
         if not self.match(token.IDENTIFIER):
@@ -160,16 +174,17 @@ class Parser:
                 raise ParseException("Another identifier expected.")
             names.append(self.peek(-1).lexeme)
         for name in names:
-            # TODO optional: check if already registered
+            if self.symbol_table.exists(name):
+                raise ParseException("Name '{}' already exists in symbol table. Let statement impossible.".format(name))
             self.symbol_table.register(name)
         return names
 
-    def if_stmt(self):
+    def if_stmt(self) -> ast.IfElseStatement:
         if not self.match(token.IF):
             raise Exception("Expected if.")
         cond = self.expression()
         t = self.block_stmt()
-        e = None
+        e : typing.Union[None, ast.Block, ast.IfElseStatement] = None
         if self.match(token.ELSE):
             if self.peek().type == token.IF:
                 e = self.if_stmt()
@@ -177,21 +192,21 @@ class Parser:
                 e = self.block_stmt()
         return ast.IfElseStatement(cond, t, e)
 
-    def while_stmt(self):
+    def while_stmt(self) -> ast.WhileStatement:
         if not self.match(token.WHILE):
             raise Exception("Expected while.")
         cond = self.expression()
         t = self.block_stmt()
         return ast.WhileStatement(cond, t)
 
-    def print_stmt(self):
+    def print_stmt(self) -> ast.Print:
         if not self.match(token.PRINT):
             raise Exception("Expected print statement.")
         res = ast.Print(self.expression())
         self.match(token.SEMICOLON)
         return res
 
-    def block_stmt(self):
+    def block_stmt(self) -> ast.Block:
         self.check_eof("Expected { for block statement.")
         if not self.match(token.LBRACE):
             raise ParseException("Expected { for block statement.")
@@ -207,34 +222,34 @@ class Parser:
         self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
-    def assignment(self):
-        lhs = ast.ExpressionList(self.parse_commata_expressions())
+    def assignment(self) -> ast.BaseNode:
+        lhs : ast.BaseNode = ast.ExpressionList(self.parse_commata_expressions())
         if self.match(token.ASSIGN):
             rhs = self.assignment()
             lhs = ast.BinOp(lhs, "=", rhs)
         return lhs
 
-    def expression(self):
+    def expression(self) -> ast.BaseNode:
         return self.parse_or()
 
-    def parse_or(self):
+    def parse_or(self) -> ast.BaseNode:
         lhs = self.parse_and()
         while self.match(token.OP_OR):
             lhs = ast.BinOp(lhs, "||", self.parse_and())
         return lhs
 
-    def parse_and(self):
+    def parse_and(self) -> ast.BaseNode:
         lhs = self.parse_not()
         while self.match(token.OP_AND):
             lhs = ast.BinOp(lhs, "&&", self.parse_not())
         return lhs
 
-    def parse_not(self):
+    def parse_not(self) -> ast.BaseNode:
         if self.match(token.OP_NEG):
             return ast.UnaryOp("!", self.parse_not())
         return self.compare()
 
-    def compare(self):
+    def compare(self) -> ast.BaseNode:
         lhs = self.parse_pipeline()
         while self.match([token.OP_EQ, token.OP_NEQ, token.OP_GT, token.OP_GE, token.OP_LT, token.OP_LE]):
             prev = self.peek(-1)
@@ -256,11 +271,19 @@ class Parser:
             lhs = ast.BinOp(lhs, op, rhs)
         return lhs
 
-    def parse_pipeline(self):
+    def parse_pipeline(self) -> ast.BaseNode:
         leftmost = self.addition()
         if not self.peek().type==token.BONG:
             return leftmost
-        elements = [leftmost]
+        # Pipelines consist of:
+        # a) stdin for the first syscall (string or string-variable)
+        # b) syscalls
+        # c) stdout[,stderr] for the last syscall (pipelinelet, expressionlist)
+        #PipelinePart = typing.Union[ast.String, ast.Variable, ast.SysCall, ast.PipelineLet, ast.ExpressionList]
+        # Unfortunately, this can not be guaranteed here because leftmost is
+        # ast.BaseNode :( should we do type-checking here?
+        #elements : typing.List[PipelinePart] = [leftmost]
+        elements : typing.List[ast.BaseNode] = [leftmost]
         while self.match(token.BONG):
             if self.peek().type == token.LET:
                 names = self.let_lhs()
@@ -275,9 +298,11 @@ class Parser:
         pipeline = ast.Pipeline(elements, False)
         if self.match(token.AMPERSAND):
             pipeline.nonblocking = True
+        #if not self.match(token.SEMICOLON):
+            #raise ParseException("A pipeline should end a line!")
         return pipeline
 
-    def addition(self):
+    def addition(self) -> ast.BaseNode:
         lhs = self.multiplication()
         while self.match([token.OP_ADD, token.OP_SUB]):
             prev = self.peek(-1)
@@ -390,7 +415,7 @@ class Parser:
             return []
         return self.parse_commata_expressions()
 
-    def parse_commata_expressions(self):
+    def parse_commata_expressions(self) -> typing.List[ast.BaseNode]:
         elements = []
         elements.append(self.expression())
         while self.match(token.COMMA):

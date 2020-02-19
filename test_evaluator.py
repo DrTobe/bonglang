@@ -87,12 +87,14 @@ class TestEvaluator(unittest.TestCase):
                 ]
         test_eval_list(self, tests)
 
+    """ No shadowing anymore. Just look for a different name :)
     def test_shadowing(self):
         tests = [
                 "let a = 5 { let a = 10 { a } }", 10,
                 "let a = 5 { let a = 10 } a", 5,
                 ]
         test_eval_list(self, tests)
+    """
 
     def test_print_arith(self):
         tests = [

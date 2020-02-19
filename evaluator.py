@@ -5,7 +5,7 @@ import objects
 # For subprocesses
 import os
 import subprocess
-import _io
+import io
 
 # For cmdline arguments
 import sys
@@ -168,7 +168,7 @@ class Eval:
         elif isinstance(node, ast.IndexAccess):
             index = self.evaluate(node.rhs)
             lhs = self.evaluate(node.lhs)
-            if isinstance(lhs, str):
+            if isinstance(lhs, str): # bong string
                 return lhs[index]
             if isinstance(lhs, objects.Array): # bong array
                 return lhs.elements[index]
@@ -363,7 +363,7 @@ class Eval:
                     # c) lhs of the pipe was variable or function
                     # -> Create the process with stdin=PIPE and write the value into stdin
                     case_a = stdin==None
-                    case_b = isinstance(stdin, _io.BufferedReader)
+                    case_b = isinstance(stdin, io.BufferedReader) # _io.Buff...?
                     case_c = not (case_a or case_b)
                     stdin_arg = stdin if not case_c else subprocess.PIPE
                     stdout_arg = subprocess.PIPE if numOutputPipes>0 else None
@@ -384,7 +384,7 @@ class Eval:
                     # Now, after having created this process, we can run the
                     # stdout.close() on the previous process (if there was one)
                     # stdout of the previous is stdin here.
-                    if isinstance(stdin, _io.BufferedReader):
+                    if isinstance(stdin, io.BufferedReader): # _io.Buff...?
                         stdin.close()
                     return proc
         print("bong: {}: command not found".format(cmd[0]))

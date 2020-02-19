@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 from parser import Parser, UnexpectedEof
 from lexer import Lexer
 from evaluator import Eval
