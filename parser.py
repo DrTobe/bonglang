@@ -1,14 +1,13 @@
 import token_def as token
 import ast
 import symbol_table
-import environment
 import evaluator # Required for access to the builtin variables
 import sys # To print on stderr
 import bongtypes
 import typing
 
 class Parser:
-    def __init__(self, lexer, symtable=None, functions : environment.Environment=None):
+    def __init__(self, lexer, symtable=None):
         self.lexer = lexer
         self.init_token_access()
         if symtable == None:
@@ -18,10 +17,6 @@ class Parser:
         for key in evaluator.Eval.BUILTIN_ENVIRONMENT:
             if key not in self.symbol_table.names:
                 self.symbol_table.register(key)
-        if functions == None:
-            self.functions : environment.Environment= environment.Environment()
-        else:
-            self.functions = functions
 
     def compile(self) -> ast.Program:
         statements : typing.List[ast.BaseNode] = []
@@ -36,7 +31,7 @@ class Parser:
             else:
                 lexeme = t.type
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
-        return ast.Program(statements, self.functions)
+        return ast.Program(statements, self.symbol_table)
 
     def top_level_stmt(self) -> ast.BaseNode:
         return self.stmt()
@@ -117,8 +112,6 @@ class Parser:
         original_symbol_table.register(name)
         original_symbol_table[name].typ = bongtypes.Function()
         func = ast.FunctionDefinition(name, parameter_names, parameter_types, return_types, body, func_symbol_table)
-        self.functions.register(name)
-        self.functions.set(name, func)
         return func
 
     def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[str]]:

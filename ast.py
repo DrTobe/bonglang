@@ -1,6 +1,5 @@
 import token_def as token
 import symbol_table
-import environment
 import typing
 
 class BaseNode:
@@ -9,9 +8,9 @@ class BaseNode:
             raise Exception("BaseNode should not be initialized directly")
 
 class Program(BaseNode):
-    def __init__(self, statements : typing.List[BaseNode] , functions : environment.Environment):
+    def __init__(self, statements : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):
         self.statements = statements
-        self.functions = functions
+        self.symbol_table = symbol_table
     def __str__(self):
         result = []
         for stmt in self.statements:
@@ -163,7 +162,7 @@ class FunctionDefinition(BaseNode):
         result += ", ".join(parameters)
         result += ") "
         if len(self.return_types) > 0:
-            result += " : " + ", ".join(self.return_types)
+            result += ": " + ", ".join(self.return_types) + " "
         result += str(self.body)
         return result
 

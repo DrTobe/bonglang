@@ -56,17 +56,8 @@ class TestParser(unittest.TestCase):
         test_strings_list(self, data)
 
     def test_function_definition(self):
-        testData = [
-                TestData("func someFunc() { let a = 1337 }", "someFunc"),
-                TestData("func add(a : Int, b : Int) : Int { return a + b }", "add"),
-                ]
-        for td in testData:
-            program = translate(td.sourcecode)
-            try:
-                self.assertNotEqual(program.functions.get(td.expectedStr), None)
-            except:
-                self.fail("Expected function to exist")
-
+        test_string(self, "func someFunc() { let a = 1337 }", "{\nsomeFunc() {\nlet a = 1337\n}\n}")
+        test_string(self, "func add(a : Int, b : Int) : Int { return a + b }", "{\nadd(a : Int, b : Int) : Int {\nreturn (a+b)\n}\n}")
 
     def test_if(self):
         testData = [
