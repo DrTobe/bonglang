@@ -1,3 +1,5 @@
+import typing
+
 # With the following BaseType, we can use
 # python's type annotations whenever we expect type information in bong.
 # To prevent BaseType itself from being instantiated, we raise an Exception
@@ -55,7 +57,13 @@ class BaseType:
 
 # No first-class type but required to mark functions in the symbol table
 class Function(BaseType):
-	pass
+	def __init__(self, parameter_types : typing.List[BaseType] = None, return_types : typing.List[BaseType] = None):
+		if parameter_types == None:
+			parameter_types = []
+		if return_types == None:
+			return_types = []
+		self.parameter_types = parameter_types
+		self.return_types = return_types
 
 class Integer(BaseType):
 	def __add__(self, other):

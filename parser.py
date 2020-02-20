@@ -8,7 +8,7 @@ import bongtypes
 import typing
 
 class Parser:
-    def __init__(self, lexer, symtable=None, functions=None):
+    def __init__(self, lexer, symtable=None, functions : environment.Environment=None):
         self.lexer = lexer
         self.init_token_access()
         if symtable == None:
@@ -24,12 +24,10 @@ class Parser:
             self.functions = functions
 
     def compile(self) -> ast.Program:
-        statements = []
+        statements : typing.List[ast.BaseNode] = []
         try:
             while self.peek().type != token.EOF:
-                stmt = self.top_level_stmt()
-                if stmt != None:
-                    statements.append(stmt)
+                statements.append(self.top_level_stmt())
         except ParseException as e:
             statements = [] # In case of syntax error, nothing should be executed
             t = self.peek(e.offset)
@@ -40,13 +38,12 @@ class Parser:
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
         return ast.Program(statements, self.functions)
 
-    def top_level_stmt(self) -> typing.Optional[ast.BaseNode]:
-        if self.peek().type == token.FUNC:
-            self.parse_function_definition()
-            return None
+    def top_level_stmt(self) -> ast.BaseNode:
         return self.stmt()
 
     def stmt(self) -> ast.BaseNode:
+        if self.peek().type == token.FUNC:
+            return self.parse_function_definition()
         if self.peek().type == token.PRINT:
             return self.print_stmt()
         if self.peek().type == token.LET:
@@ -81,7 +78,7 @@ class Parser:
             return self.expression_stmt()
         raise ParseException("Unknown statement found.")
 
-    def parse_function_definition(self) -> None:
+    def parse_function_definition(self) -> ast.FunctionDefinition:
         if not self.match(token.FUNC):
             raise Exception("Expected function definition.")
 
@@ -94,10 +91,18 @@ class Parser:
         if not self.match(token.LPAREN):
             raise ParseException("Expected ( to start the parameter list.")
 
-        parameters = self.parse_parameters()
+        parameter_names, parameter_types = self.parse_parameters()
 
         if not self.match(token.RPAREN):
             raise ParseException("Expected ) to end the parameter list.")
+
+        # Return types
+        return_types : typing.List[str] = []
+        if self.match(token.COLON):
+            self.check_eof("Return type list expected.")
+            return_types.append(self.parse_returntype())
+            while self.match(token.COMMA):
+                return_types.append(self.parse_returntype())
 
         if not self.peek().type == token.LBRACE:
             raise ParseException("Expected function body.")
@@ -105,31 +110,46 @@ class Parser:
         original_symbol_table = self.symbol_table
         func_symbol_table = symbol_table.SymbolTable()
         self.symbol_table = func_symbol_table
-        for param in parameters:
+        for param in parameter_names:
             self.symbol_table.register(param)
         body = self.block_stmt()
         self.symbol_table = original_symbol_table
-        func = ast.FunctionDefinition(name, parameters, body, func_symbol_table)
-        self.functions.register(name)
-        self.functions.set(name, func)
         original_symbol_table.register(name)
         original_symbol_table[name].typ = bongtypes.Function()
-        return None # function definition is in the symbol table, so we don't need to return it
+        func = ast.FunctionDefinition(name, parameter_names, parameter_types, return_types, body, func_symbol_table)
+        self.functions.register(name)
+        self.functions.set(name, func)
+        return func
 
-    def parse_parameters(self) -> typing.List[str]:
-        params : typing.List[str]= []
+    def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[str]]:
+        parameter_names : typing.List[str] = []
+        parameter_types : typing.List[str] = []
         self.check_eof("Parameter list expected")
-        p = self.peek()
-        if not self.match(token.IDENTIFIER):
-            return params
-        params.append(p.lexeme)
+        if self.peek().type != token.IDENTIFIER:
+            return (parameter_names, parameter_types)
+        name, typ = self.parse_parameter()
+        parameter_names.append(name)
+        parameter_types.append(typ)
         while self.match(token.COMMA):
-            self.check_eof("Another parameter expected")
-            p = self.peek()
-            if not self.match(token.IDENTIFIER):
-                raise ParseException("Expected identifier as parameter.")
-            params.append(p.lexeme)
-        return params
+            name, typ = self.parse_parameter()
+            parameter_names.append(name)
+            parameter_types.append(typ)
+        return (parameter_names, parameter_types)
+    def parse_parameter(self) -> typing.Tuple[str,str]:
+        self.check_eof("Another parameter expected")
+        if not self.match(token.IDENTIFIER):
+            raise ParseException("Expected identifier as parameter name.")
+        name = self.peek(-1).lexeme
+        if not self.match(token.COLON):
+            raise ParseException("Expected type hint for function parameter.")
+        if not self.match(token.IDENTIFIER):
+            raise ParseException("Expected identifier as parameter type.")
+        typ = self.peek(-1).lexeme
+        return (name, typ)
+    def parse_returntype(self) -> str:
+        if not self.match(token.IDENTIFIER):
+            raise ParseException("Expected identifier as return type.")
+        return self.peek(-1).lexeme
 
     def return_stmt(self) -> ast.Return:
         if not self.match(token.RETURN):
@@ -212,7 +232,7 @@ class Parser:
             raise ParseException("Expected { for block statement.")
         block_symbol_table = symbol_table.SymbolTable(self.symbol_table)
         self.symbol_table = block_symbol_table
-        statements = []
+        statements : typing.List[ast.BaseNode] = []
         while self.peek().type != token.RBRACE:
             self.check_eof("Expected statement for block body.")
             statements.append(self.stmt())
@@ -225,7 +245,7 @@ class Parser:
     def assignment(self) -> ast.BaseNode:
         lhs : ast.BaseNode = ast.ExpressionList(self.parse_commata_expressions())
         if self.match(token.ASSIGN):
-            rhs = self.assignment()
+            rhs : ast.BaseNode = self.assignment()
             lhs = ast.BinOp(lhs, "=", rhs)
         return lhs
 

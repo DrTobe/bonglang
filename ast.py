@@ -1,5 +1,6 @@
 import token_def as token
 import symbol_table
+import environment
 import typing
 
 class BaseNode:
@@ -8,7 +9,7 @@ class BaseNode:
             raise Exception("BaseNode should not be initialized directly")
 
 class Program(BaseNode):
-    def __init__(self, statements, functions):
+    def __init__(self, statements : typing.List[BaseNode] , functions : environment.Environment):
         self.statements = statements
         self.functions = functions
     def __str__(self):
@@ -18,7 +19,7 @@ class Program(BaseNode):
         return "{\n" + "\n".join(result) + "\n}"
 
 class Block(BaseNode):
-    def __init__(self, stmts : typing.List, symbol_table : symbol_table.SymbolTable):
+    def __init__(self, stmts : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):
         self.stmts = stmts
         self.symbol_table = symbol_table
     def __str__(self):
@@ -147,15 +148,22 @@ class SysCall(BaseNode):
         return "(call " + " ".join(self.args) + ")"
 
 class FunctionDefinition(BaseNode):
-    def __init__(self, name : str, parameters : typing.List[str], body : Block, symbol_table : symbol_table.SymbolTable):
+    def __init__(self, name : str, parameter_names : typing.List[str], parameter_types : typing.List[str], return_types : typing.List[str], body : Block, symbol_table : symbol_table.SymbolTable):
         self.name = name
-        self.parameters = parameters
+        self.parameter_names = parameter_names
+        self.parameter_types = parameter_types
+        self.return_types = return_types
         self.body = body
         self.symbol_table = symbol_table
     def __str__(self):
+        parameters = []
+        for name, typ in zip(self.parameter_names, self.parameter_types):
+            parameters.append(name + " : " + typ)
         result = self.name + "("
-        result += ", ".join(self.parameters)
+        result += ", ".join(parameters)
         result += ") "
+        if len(self.return_types) > 0:
+            result += " : " + ", ".join(self.return_types)
         result += str(self.body)
         return result
 

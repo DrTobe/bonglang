@@ -63,6 +63,8 @@ class Lexer:
             return self.create_token(token.COMMA)
         if c == ".":
             return self.create_token(token.DOT)
+        if c == ":":
+            return self.create_token(token.COLON)
         if c == "+":
             return self.create_token(token.OP_ADD)
         if c == "-":

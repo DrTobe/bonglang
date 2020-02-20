@@ -12,9 +12,9 @@ class TestEvaluator(unittest.TestCase):
                 "func f() {}", None,
                 "func f() {} f()", None,
                 "func f() { return 1337 } f()", 1337,
-                "func add(a, b) { return a + b } add(21, 21)", 42,
-                "func calc(a, b, c) { return a + b * c } calc(3, 5, 7)", 38,
-                "func faculty(n) { if n <= 1 { return 1 } else { return n * faculty(n-1) } } faculty(5)", 120,
+                "func add(a : Int, b : Int) : Int { return a + b } add(21, 21)", 42,
+                "func calc(a:Int, b:Int, c:Int) : Int { return a + b * c } calc(3, 5, 7)", 38,
+                "func faculty(n:Int) : Int { if n <= 1 { return 1 } else { return n * faculty(n-1) } } faculty(5)", 120,
                 ]
         test_eval_list(self, tests)
 

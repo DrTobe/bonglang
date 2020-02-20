@@ -115,8 +115,8 @@ class TestLexer(unittest.TestCase):
         test_token_types(self, sourcecode, expectedTypes)
 
     def test_other_tokens(self):
-        sourcecode = ","
-        expectedTypes = [COMMA]
+        sourcecode = ", ; . :"
+        expectedTypes = [COMMA, SEMICOLON, DOT, COLON]
         test_token_types(self, sourcecode, expectedTypes)
 
 

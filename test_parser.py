@@ -58,7 +58,7 @@ class TestParser(unittest.TestCase):
     def test_function_definition(self):
         testData = [
                 TestData("func someFunc() { let a = 1337 }", "someFunc"),
-                TestData("func add(a, b) { return a + b }", "add"),
+                TestData("func add(a : Int, b : Int) : Int { return a + b }", "add"),
                 ]
         for td in testData:
             program = translate(td.sourcecode)

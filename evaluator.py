@@ -28,12 +28,20 @@ class Eval:
 
     def evaluate(self, node):
         if isinstance(node, ast.Program):
-            for key, value in node.functions.values.items():
-                if key in self.builtin_functions:
-                    raise(Exception("Cannot overwrite builtin "+key))
-                self.functions.reg_and_set(key, value)
+            # Register all functions in the environment before evaluating the
+            # top-level-statements
+            toplevel_statements = []
+            for statement in node.statements:
+                if isinstance(statement, ast.FunctionDefinition):
+                    func = statement
+                    if func.name in self.builtin_functions:
+                        raise(Exception("Cannot overwrite builtin "+func.name))
+                    self.functions.reg_and_set(func.name, func)
+                else:
+                    toplevel_statements.append(statement)
             res = None
-            for stmt in node.statements:
+            # Afterwards, run all non-function statements
+            for stmt in toplevel_statements:
                 res = self.evaluate(stmt)
                 if isinstance(res, ReturnValue):
                     # ast.Program is the top-level-node, return means exit then
@@ -189,13 +197,13 @@ class Eval:
             function = self.functions.get(node.name)
             if not isinstance(function, ast.FunctionDefinition):
                 raise Exception("can only call functions")
-            if len(function.parameters) != len(node.args):
+            if len(function.parameter_names) != len(node.args):
                 raise Exception("wrong number of arguments")
             args = []
             for a in node.args:
                 args.append(self.evaluate(a))
             self.push_new_env()
-            for i, param in enumerate(function.parameters):
+            for i, param in enumerate(function.parameter_names):
                 self.environment.register(param)
                 self.environment.set(param, args[i])
             result = self.evaluate(function.body)
