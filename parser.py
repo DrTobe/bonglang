@@ -16,7 +16,7 @@ class Parser:
             self.symbol_table = symtable
         for key in evaluator.Eval.BUILTIN_ENVIRONMENT:
             if key not in self.symbol_table.names:
-                self.symbol_table.register(key)
+                self.symbol_table.register(key, bongtypes.UnknownType) # TODO unknown?
 
     def compile(self) -> ast.Program:
         statements : typing.List[ast.BaseNode] = []
@@ -34,11 +34,11 @@ class Parser:
         return ast.Program(statements, self.symbol_table)
 
     def top_level_stmt(self) -> ast.BaseNode:
+        if self.peek().type == token.FUNC:
+            return self.parse_function_definition()
         return self.stmt()
 
     def stmt(self) -> ast.BaseNode:
-        if self.peek().type == token.FUNC:
-            return self.parse_function_definition()
         if self.peek().type == token.PRINT:
             return self.print_stmt()
         if self.peek().type == token.LET:
@@ -74,23 +74,23 @@ class Parser:
         raise ParseException("Unknown statement found.")
 
     def parse_function_definition(self) -> ast.FunctionDefinition:
+        # FUNC foo (bar : int) : str { ... }
         if not self.match(token.FUNC):
             raise Exception("Expected function definition.")
-
+        # func FOO (bar : int) : str { ... }
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected function name.")
-
         name = self.peek(-1).lexeme
         if self.symbol_table.exists(name):
             raise ParseException("Name '{}' already exists in symbol table. Function definition impossible.".format(name))
+        # (
         if not self.match(token.LPAREN):
             raise ParseException("Expected ( to start the parameter list.")
-
+        # Parameters
         parameter_names, parameter_types = self.parse_parameters()
-
+        # )
         if not self.match(token.RPAREN):
             raise ParseException("Expected ) to end the parameter list.")
-
         # Return types
         return_types : typing.List[str] = []
         if self.match(token.COLON):
@@ -98,21 +98,20 @@ class Parser:
             return_types.append(self.parse_returntype())
             while self.match(token.COMMA):
                 return_types.append(self.parse_returntype())
-
+        # {
         if not self.peek().type == token.LBRACE:
             raise ParseException("Expected function body.")
-
+        # Push/Pop symbol tables and parse statement block
         original_symbol_table = self.symbol_table
         func_symbol_table = symbol_table.SymbolTable()
         self.symbol_table = func_symbol_table
-        for param in parameter_names:
-            self.symbol_table.register(param)
+        for param,typ in zip(parameter_names,parameter_types):
+            self.symbol_table.register(param, self.get_bongtype(typ))
         body = self.block_stmt()
         self.symbol_table = original_symbol_table
-        original_symbol_table.register(name)
-        original_symbol_table[name].typ = bongtypes.Function()
-        func = ast.FunctionDefinition(name, parameter_names, parameter_types, return_types, body, func_symbol_table)
-        return func
+        # Register function in symbol table
+        original_symbol_table.register(name, bongtypes.Function(parameter_types, return_types))
+        return ast.FunctionDefinition(name, parameter_names, parameter_types, return_types, body, func_symbol_table)
 
     def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[str]]:
         parameter_names : typing.List[str] = []
@@ -143,6 +142,11 @@ class Parser:
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected identifier as return type.")
         return self.peek(-1).lexeme
+    # Used by function definition and let statement
+    def get_bongtype(self, name) -> bongtypes.BaseType:
+        if name in bongtypes.basic_types:
+            return bongtypes.basic_types[name]
+        raise ParseException("Unknown type '{}'".format(name))
 
     def return_stmt(self) -> ast.Return:
         if not self.match(token.RETURN):
@@ -178,19 +182,43 @@ class Parser:
     def let_lhs(self) -> typing.List[str]:
         if not self.match(token.LET):
             raise Exception("Expected let statement.")
-        if not self.match(token.IDENTIFIER):
-            raise ParseException("At least one identifier must be specified.")
-        names = [self.peek(-1).lexeme]
-        while self.match(token.COMMA):
-            self.check_eof("Another identifier expected.")
-            if not self.match(token.IDENTIFIER):
-                raise ParseException("Another identifier expected.")
-            names.append(self.peek(-1).lexeme)
-        for name in names:
+        # Parse variable names and types
+        variable_names, variable_types = self.parse_let_variables()
+        # Register names in symbol table
+        for name,typ in zip(variable_names,variable_types):
             if self.symbol_table.exists(name):
                 raise ParseException("Name '{}' already exists in symbol table. Let statement impossible.".format(name))
-            self.symbol_table.register(name)
-        return names
+            typ = self.get_bongtype(typ) if typ!=None else bongtypes.UnknownType()
+            self.symbol_table.register(name, typ)
+        return variable_names
+    # TODO These functions are extremely similar to
+    # parse_parameters() / parse_parameter() / parse_returntype().
+    # Should we unify those functions?
+    def parse_let_variables(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[str]]]:
+        variable_names : typing.List[str] = []
+        variable_types : typing.List[typing.Optional[str]] = []
+        #?? self.check_eof("Parameter list expected")
+        name, typ = self.parse_let_variable()
+        variable_names.append(name)
+        variable_types.append(typ)
+        while self.match(token.COMMA):
+            name, typ = self.parse_let_variable()
+            variable_names.append(name)
+            variable_types.append(typ)
+        return (variable_names, variable_types)
+    def parse_let_variable(self) -> typing.Tuple[str, typing.Optional[str]]:
+        #??? self.check_eof("Another parameter expected")
+        if not self.match(token.IDENTIFIER):
+            raise ParseException("Expected identifier as variable name.")
+        name = self.peek(-1).lexeme
+        if self.match(token.COLON):
+            if not self.match(token.IDENTIFIER):
+                raise ParseException("Expected identifier as variable type.")
+            typ = self.peek(-1).lexeme
+        else:
+            typ = None
+        return (name, typ)
+
 
     def if_stmt(self) -> ast.IfElseStatement:
         if not self.match(token.IF):

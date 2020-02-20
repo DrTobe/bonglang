@@ -5,10 +5,10 @@ class SymbolTable:
     def __init__(self, parent=None):
         self.parent = parent
         self.names = {}
-    def register(self, name):
+    def register(self, name : str, typ : bongtypes.BaseType):
         if name in self.names:
             raise Exception("cannot redefine " + name)
-        self.names[name] = Symbol()
+        self.names[name] = Symbol(typ)
     def remove(self, name):
         self.names.pop(name, None)
     def contains(self, name):
@@ -33,11 +33,10 @@ class SymbolTable:
             x += "(" + str(self.parent) + ") "
         x += "{\n"
         for name,symbol in self.names.items():
-            x += name + " : " + str(symbol.typ) + " = " + str(symbol.value) + "\n"
+            x += name + " : " + str(symbol.typ) + "\n"
         x += "}"
         return x
 
 class Symbol:
-    def __init__(self):
-        self.typ : typing.Optional[bongtypes.BaseType] = None
-        #self.value = None
+    def __init__(self, typ : bongtypes.BaseType):
+        self.typ = typ

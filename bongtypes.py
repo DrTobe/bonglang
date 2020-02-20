@@ -57,13 +57,13 @@ class BaseType:
 
 # No first-class type but required to mark functions in the symbol table
 class Function(BaseType):
-	def __init__(self, parameter_types : typing.List[BaseType] = None, return_types : typing.List[BaseType] = None):
-		if parameter_types == None:
-			parameter_types = []
-		if return_types == None:
-			return_types = []
+	def __init__(self, parameter_types : typing.List[BaseType], return_types : typing.List[BaseType]):
 		self.parameter_types = parameter_types
 		self.return_types = return_types
+
+# Pseudo-type for let statements with automatic type resolution
+class UnknownType(BaseType):
+	pass
 
 class Integer(BaseType):
 	def __add__(self, other):
@@ -146,6 +146,7 @@ class Boolean(BaseType):
 		if type(other)==Boolean:
 			return Boolean()
 		raise BongtypeException("The second operand should be a Boolean.")
+
 class String(BaseType):
 	def __add__(self, other):
 		if type(other)==String:
@@ -173,6 +174,17 @@ class Array(BaseType):
 	def __getitem__(self, key):
 		return self.contained_type
 		"""
+
+# Currently, this list of types is used to map type-strings to
+# bongtypes.BaseType (subclass) instances. Maybe, this approach has to be
+# revised in the future so that self-defined types can be used.
+# -> coffee-discussion :)
+basic_types = {
+		"Int": Integer,
+		"Float": Float,
+		"Bool": Boolean,
+		"Str": String,
+}
 
 class BongtypeException(Exception):
 	def __init__(self, msg : str):
