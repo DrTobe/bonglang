@@ -32,10 +32,13 @@ class BaseType:
 		return self.comp(other)
 	def __le__(self, other):
 		return self.comp(other)
+	""" don't overload '==' and '!='
+	    those two are used to check for None, e.g. in typechecker
 	def __eq__(self, other):
 		return self.comp(other)
 	def __ne__(self, other):
 		return self.comp(other)
+	"""
 	def __gt__(self, other):
 		return self.comp(other)
 	def __ge__(self, other):
@@ -54,16 +57,79 @@ class BaseType:
 		raise Exception("No bitwise operators used in bong.")
 	def __invert__(self, other):
 		raise Exception("No bitwise operators used in bong.")
+	# Because the comparison operators are overloaded, we need the following
+	# function to determine equality between bongtypes.
+	# It has to be overloaded for types that contain other types.
+	def sametype(self, other):
+		return type(self)==type(other)
+
+# Meta-type for expression lists
+class TypeList(BaseType):
+	def __init__(self, contained_types : typing.List[BaseType]):
+		self.contained_types = contained_types
+	# Flattened append (no TypeList inside a TypeList)
+	def append(self, element : BaseType):
+		if type(element)==TypeList:
+			tlist = typing.cast(TypeList,element)
+			for typ in tlist.contained_types:
+				self.contained_types.append(typ)
+		else:
+			self.contained_types.append(element)
+	# The next two methods for index-access and length
+	def __len__(self):
+		return len(self.contained_types)
+	def __getitem__(self, index):
+		return self.contained_types[index]
+	# The next two methods make this class iterable
+	def __iter__(self):
+		self.iterationCounter = -1
+		return self
+	def __next__(self):
+		self.iterationCounter += 1
+		if self.iterationCounter < len(self.contained_types):
+			return self.contained_types[self.iterationCounter]
+		raise StopIteration
+	def sametype(self, other):
+		if type(other)!=TypeList:
+			return False
+		if len(self.contained_types)!=len(other.contained_types):
+			return False
+		for a,b in zip(self.contained_types, other.contained_types):
+			if not a.sametype(b):
+				return False
+		return True
 
 # No first-class type but required to mark functions in the symbol table
 class Function(BaseType):
-	def __init__(self, parameter_types : typing.List[BaseType], return_types : typing.List[BaseType]):
+	def __init__(self, parameter_types : TypeList, return_types : TypeList):
 		self.parameter_types = parameter_types
 		self.return_types = return_types
+	def sametype(self, other):
+		raise Exception("not implemented")
 
-# Pseudo-type for let statements with automatic type resolution
+# Pseudo type used by the parser to comply to typing constraints
+# TODO Currently unused because we still resolve types in the parser
+# as long as we do not support custom types
 class UnknownType(BaseType):
-	pass
+	def sametype(self, other):
+		raise Exception("not implemented")
+# Pseudo-type for let statements with automatic type resolution
+class AutoType(BaseType):
+	def sametype(self, other):
+		raise Exception("not implemented")
+
+# Pseudo-type for return statments
+class ReturnType(BaseType):
+	def __init__(self, contained_type : typing.Optional[BaseType]):
+		self.contained_type = contained_type
+	def sametype(self, other):
+		if type(other)==ReturnType:
+			if self.contained_type != None:
+				return self.contained_type.sametype(other.contained_type)
+			else:
+				return other.contained_type == None
+		else:
+			return False
 
 class Integer(BaseType):
 	def __add__(self, other):
@@ -88,9 +154,9 @@ class Integer(BaseType):
 		return self.comp(other)
 	def __le__(self, other):
 		return self.comp(other)
-	def __eq__(self, other):
+	def eq(self, other):
 		return self.comp(other)
-	def __ne__(self, other):
+	def ne(self, other):
 		return self.comp(other)
 	def __gt__(self, other):
 		return self.comp(other)
@@ -124,9 +190,9 @@ class Float(BaseType):
 		return self.comp(other)
 	def __le__(self, other):
 		return self.comp(other)
-	def __eq__(self, other):
+	def eq(self, other):
 		return self.comp(other)
-	def __ne__(self, other):
+	def ne(self, other):
 		return self.comp(other)
 	def __gt__(self, other):
 		return self.comp(other)
@@ -138,9 +204,9 @@ class Float(BaseType):
 		raise BongtypeException("The second operand should be Integer or Float.")
 
 class Boolean(BaseType):
-	def __eq__(self, other):
+	def eq(self, other):
 		return self.comp(other)
-	def __ne__(self, other):
+	def ne(self, other):
 		return self.comp(other)
 	def comp(self, other):
 		if type(other)==Boolean:
@@ -152,9 +218,9 @@ class String(BaseType):
 		if type(other)==String:
 			return String()
 		raise BongtypeException("The second operand should be a String.")
-	def __eq__(self, other):
+	def eq(self, other):
 		return self.comp(other)
-	def __ne__(self, other):
+	def ne(self, other):
 		return self.comp(other)
 	def comp(self, other):
 		if type(other)==String:
@@ -174,6 +240,11 @@ class Array(BaseType):
 	def __getitem__(self, key):
 		return self.contained_type
 		"""
+	def sametype(self, other):
+		if type(other)==Array:
+			return self.contained_type.sametype(other.contained_type)
+		else:
+			return False
 
 # Currently, this list of types is used to map type-strings to
 # bongtypes.BaseType (subclass) instances. Maybe, this approach has to be

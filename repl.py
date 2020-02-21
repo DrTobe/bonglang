@@ -1,7 +1,8 @@
 #!/usr/bin/python
 
-from parser import Parser, UnexpectedEof
 from lexer import Lexer
+from parser import Parser, UnexpectedEof
+from typechecker import TypeChecker
 from evaluator import Eval
 from symbol_table import SymbolTable
 import objects
@@ -159,8 +160,11 @@ def main():
             # symbol table / environment.
             # For tab-completion, do we want to support local/scoped variables?
             p = Parser(l, symtable)
+            typecheck = TypeChecker()
             try:
                 program = p.compile()
+                # TODO WIP
+                #typecheck.checkprogram(program)
                 evaluated = evaluator.evaluate(program)
                 code = ""
                 if evaluated != None:

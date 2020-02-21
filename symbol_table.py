@@ -10,7 +10,10 @@ class SymbolTable:
             raise Exception("cannot redefine " + name)
         self.names[name] = Symbol(typ)
     def remove(self, name):
-        self.names.pop(name, None)
+        if name in self.names:
+            self.names.pop(name, None)
+        elif self.parent != None:
+            self.parent.remove(name)
     def contains(self, name):
         return name in self.names
     def exists(self, name):

@@ -59,12 +59,17 @@ class Eval:
                     break
             self.pop_env()
             return result
+        if isinstance(node, ast.Return):
+            if node.result == None:
+                return ReturnValue()
+            result = self.evaluate(node.result)
+            return ReturnValue(result)
         if isinstance(node, ast.IfElseStatement):
             cond = node.cond
             if isTruthy(self.evaluate(cond)):
-                return self.evaluate(node.t)
-            elif node.e != None:
-                return self.evaluate(node.e)
+                return self.evaluate(node.thn)
+            elif node.els != None:
+                return self.evaluate(node.els)
             return None
         if isinstance(node, ast.WhileStatement):
             ret = None
@@ -73,11 +78,6 @@ class Eval:
                 if isinstance(ret, ReturnValue):
                     break
             return ret
-        if isinstance(node, ast.Return):
-            if node.result == None:
-                return ReturnValue()
-            result = self.evaluate(node.result)
-            return ReturnValue(result)
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":

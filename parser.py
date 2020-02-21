@@ -14,9 +14,13 @@ class Parser:
             self.symbol_table = symbol_table.SymbolTable()
         else:
             self.symbol_table = symtable
+        # TODO Damn it! We also have to add the builtin functions to the symbol
+        # table here!!! And: Let's just use builtin functions, no builtin variables.
+        # If a variable (e.g. program call arguments) is required, it can just
+        # be encapsulated in a function call that returns that value(s).
         for key in evaluator.Eval.BUILTIN_ENVIRONMENT:
             if key not in self.symbol_table.names:
-                self.symbol_table.register(key, bongtypes.UnknownType) # TODO unknown?
+                self.symbol_table.register(key, bongtypes.UnknownType()) # TODO unknown?
 
     def compile(self) -> ast.Program:
         statements : typing.List[ast.BaseNode] = []
@@ -102,15 +106,18 @@ class Parser:
         if not self.peek().type == token.LBRACE:
             raise ParseException("Expected function body.")
         # Push/Pop symbol tables and parse statement block
-        original_symbol_table = self.symbol_table
-        func_symbol_table = symbol_table.SymbolTable()
+        func_symbol_table = symbol_table.SymbolTable(self.symbol_table)
         self.symbol_table = func_symbol_table
         for param,typ in zip(parameter_names,parameter_types):
+            # TODO custom types
             self.symbol_table.register(param, self.get_bongtype(typ))
         body = self.block_stmt()
-        self.symbol_table = original_symbol_table
+        self.symbol_table = self.symbol_table.parent # pop
         # Register function in symbol table
-        original_symbol_table.register(name, bongtypes.Function(parameter_types, return_types))
+        # TODO Currently, we do not have custom types yet. In the future,
+        # the parser will only write UnknownType into the symbol table
+        # and a later layer will resolve those types by passing the ast
+        self.symbol_table.register(name, bongtypes.Function(self.get_bongtypes(parameter_types), self.get_bongtypes(return_types)))
         return ast.FunctionDefinition(name, parameter_names, parameter_types, return_types, body, func_symbol_table)
 
     def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[str]]:
@@ -143,10 +150,19 @@ class Parser:
             raise ParseException("Expected identifier as return type.")
         return self.peek(-1).lexeme
     # Used by function definition and let statement
+    # TODO should that functions maybe be part of symbol_table? Like that,
+    # it could be used by the parser and the typechecker and it would have
+    # access to all self-defined types (which are not supported yet, 2020-02-21)
     def get_bongtype(self, name) -> bongtypes.BaseType:
         if name in bongtypes.basic_types:
             return bongtypes.basic_types[name]
         raise ParseException("Unknown type '{}'".format(name))
+    def get_bongtypes(self, names : typing.List[str]) -> bongtypes.TypeList:
+        l = bongtypes.TypeList([])
+        for name in names:
+            l.append(self.get_bongtype(name))
+        return l
+
 
     def return_stmt(self) -> ast.Return:
         if not self.match(token.RETURN):
@@ -188,8 +204,8 @@ class Parser:
         for name,typ in zip(variable_names,variable_types):
             if self.symbol_table.exists(name):
                 raise ParseException("Name '{}' already exists in symbol table. Let statement impossible.".format(name))
-            typ = self.get_bongtype(typ) if typ!=None else bongtypes.UnknownType()
-            self.symbol_table.register(name, typ)
+            typ = self.get_bongtype(typ) if typ!=None else bongtypes.AutoType()
+            self.symbol_table.register(name, typ) # TODO custom types
         return variable_names
     # TODO These functions are extremely similar to
     # parse_parameters() / parse_parameter() / parse_returntype().
@@ -444,20 +460,21 @@ class Parser:
             return exp
         if self.match(token.LBRACKET):
             if self.match(token.RBRACKET):
-                return ast.Array([])
+                #return ast.Array([])
+                raise ParseException("Empty arrays are currently unsupported because the type can not be determined in the typechecker.")
             elements = self.parse_commata_expressions()
             if not self.match(token.RBRACKET):
                 raise ParseException("Expected ].")
             return ast.Array(elements)
         raise ParseException("Integer or () expected.")
 
-    def parse_arguments(self):
+    def parse_arguments(self) -> ast.ExpressionList:
         if self.peek().type == token.RPAREN:
-            return []
+            return ast.ExpressionList([])
         return self.parse_commata_expressions()
 
-    def parse_commata_expressions(self) -> typing.List[ast.BaseNode]:
-        elements = []
+    def parse_commata_expressions(self) -> ast.ExpressionList:
+        elements = ast.ExpressionList([])
         elements.append(self.expression())
         while self.match(token.COMMA):
             elements.append(self.expression())

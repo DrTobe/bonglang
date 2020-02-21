@@ -12,10 +12,20 @@ class Program(BaseNode):
         self.statements = statements
         self.symbol_table = symbol_table
     def __str__(self):
-        result = []
+        """ Alternative string representation that contains the symbol table, too
+        program = "Program {\n"
+        program += str(self.symbol_table) + "\n"
+        stmts = []
         for stmt in self.statements:
-            result.append(str(stmt))
-        return "{\n" + "\n".join(result) + "\n}"
+            stmts.append(str(stmt))
+        stmts = "Statements:\n" + "\n".join(stmts)
+        program += stmts + "\n} EOP"
+        return program
+        """
+        stmts = []
+        for stmt in self.statements:
+            stmts.append(str(stmt))
+        return "{\n" + "\n".join(stmts) + "\n}"
 
 class Block(BaseNode):
     def __init__(self, stmts : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):
@@ -27,8 +37,18 @@ class Block(BaseNode):
             result.append(str(stmt))
         return "{\n" + "\n".join(result) + "\n}"
 
+class Return(BaseNode):
+    def __init__(self, result=None):
+        self.result = result
+    def __str__(self):
+        result = "return"
+        if self.result != None:
+            result += " "
+            result += str(self.result)
+        return result
+
 class BinOp(BaseNode):
-    def __init__(self, lhs, op, rhs):
+    def __init__(self, lhs : BaseNode, op : str, rhs : BaseNode):
         self.lhs = lhs
         self.op = op
         self.rhs = rhs
@@ -79,41 +99,64 @@ class IndexAccess(BaseNode):
     def __str__(self):
         return str(self.lhs) + "[" + str(self.rhs) + "]"
 
+# TODO Convert to builtin function
 class Print(BaseNode):
     def __init__(self, expr):
         self.expr = expr
     def __str__(self):
         return "print "+str(self.expr)+";"
 
+# TODO Very similar to bongtypes.TypeList! Can this be generalized to
+# FlatList that ExpressionList and TypeList inherit from?
 class ExpressionList(BaseNode):
     def __init__(self, elements : typing.List[BaseNode]):
         self.elements : typing.List[BaseNode] = elements
-    def append(self, element : BaseNode):
-        self.elements.append(element)
+    # Flattened append (no ExpressionList inside an ExpressionList)
+    def append(self, node : BaseNode):
+        if isinstance(node,ExpressionList):
+            explist = typing.cast(ExpressionList,node)
+            for elem in explist.elements:
+                self.elements.append(elem)
+        else:
+            self.elements.append(node)
+    # The next two methods for index-access and length
+    def __len__(self):
+        return len(self.elements)
+    def __getitem__(self, index):
+        return self.elements[index]
+    # The next two methods make this class iterable
+    def __iter__(self):
+        self.iterationCounter = -1
+        return self
+    def __next__(self):
+        self.iterationCounter += 1
+        if self.iterationCounter < len(self.elements):
+            return self.elements[self.iterationCounter]
+        raise StopIteration
     def __str__(self):
         return ", ".join(map(str,self.elements))
 
 class Let(BaseNode):
-    def __init__(self, names : typing.List[str], expr : BaseNode):
-        self.names : typing.List[str] = names
-        self.expr : BaseNode = expr
+    def __init__(self, names : typing.List[str], expr : ExpressionList):
+        self.names = names
+        self.expr = expr
     def __str__(self):
         names = ", ".join(self.names)
         return "let " + names + " = " + str(self.expr)
 
 class IfElseStatement(BaseNode):
-    def __init__(self, cond : BaseNode, t : Block, e : BaseNode = None): # actually, it is: typing.Union[None, Block, IfElseStatement] = None):
+    def __init__(self, cond : BaseNode, thn : Block, els : BaseNode = None): # actually, it is: typing.Union[None, Block, IfElseStatement] = None):
         self.cond = cond
-        self.t = t
-        self.e = e
+        self.thn = thn
+        self.els = els
     def __str__(self):
         result = "if "
         result += str(self.cond)
         result += " "
-        result += str(self.t)
-        if self.e != None:
+        result += str(self.thn)
+        if self.els != None:
             result += " else "
-            result += str(self.e)
+            result += str(self.els)
         return result
 
 class WhileStatement(BaseNode):
@@ -179,18 +222,8 @@ class FunctionCall(BaseNode):
         result += ")"
         return result
 
-class Return(BaseNode):
-    def __init__(self, result=None):
-        self.result = result
-    def __str__(self):
-        result = "return"
-        if self.result != None:
-            result += " "
-            result += str(self.result)
-        return result
-
 class Array(BaseNode):
-    def __init__(self, elements):
+    def __init__(self, elements : ExpressionList):
         self.elements = elements
     def __str__(self):
         elements = []
