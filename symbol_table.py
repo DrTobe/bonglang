@@ -6,7 +6,7 @@ class SymbolTable:
         self.parent = parent
         self.names = {}
     def register(self, name : str, typ : bongtypes.BaseType):
-        if name in self.names:
+        if self.exists(name):
             raise Exception("cannot redefine " + name)
         self.names[name] = Symbol(typ)
     def remove(self, name):

@@ -116,29 +116,32 @@ class TestEvaluator(unittest.TestCase):
             self.assertEqual(self.result, expected, "Expected to print {} but got {}".format(expected, self.result))
 
     def test_expression_statements(self):
-        tests = [
-                "2 + 4 - 2", 4,
-                "4^2", 16,
-                "2^2 + 2^3", 12,
-                "2*3 - 12", -6,
-                "12 - 2^3" , 4,
-                "(1+2)*3", 9,
-                "1 +2 *3", 7,
-                "(1+2)^(1+2)", 27,
-                "27%5", 2,
-                "(27%5)^2", 4,
-                "-2 * 3", -6,
-                "13.37 + 4.2", 17.57,
-                "!true", False,
-                "let a = 42 a = 1337 a", 1337,
-                "let a = 1337 let b = 42 a = b = 15 a", 15,
-                "let a = 1337 let b = 42 a = b = 15 b", 15,
-                "let a = [1, 2, 3] a[0]", 1,
-                "[1, 2, 3][0]", 1,
-                "\"1, 2, 3\"[0]", "1",
-                "let a,b = 1,0 a,b=b,a a", 0
-                ]
-        test_eval_list(self, tests)
+        test_eval("let a = 1337 a", 1337, self)
+        test_eval("2 + 4 - 2", 4, self)
+        test_eval("4^2", 16, self)
+        test_eval("2^2 + 2^3", 12, self)
+        test_eval("2*3 - 12", -6, self)
+        test_eval("12 - 2^3" , 4, self)
+        test_eval("(1+2)*3", 9, self)
+        test_eval("1 +2 *3", 7, self)
+        test_eval("(1+2)^(1+2)", 27, self)
+        test_eval("27%5", 2, self)
+        test_eval("(27%5)^2", 4, self)
+        test_eval("-2 * 3", -6, self)
+        test_eval("13.37 + 4.2", 17.57, self)
+        test_eval("!true", False, self)
+        test_eval("let a = 42 a = 1337 a", 1337, self)
+        # TODO Do the following or don't do it????
+        # Assignments don't return anything anymore.
+        # Reasons: 1. Consistency with let statement,
+        # 2. For multiple assignments at once, use ExpressionList syntax: a,b = 0,0
+        # 3. Assignments don't feel like expressions anymore (which they aren't due to ExpList syntax!)
+        test_eval("let a = 1337 let b = 42 a = b = 15 a", 15, self)
+        test_eval("let a = 1337 let b = 42 a = b = 15 b", 15, self)
+        test_eval("let a = [1, 2, 3] a[0]", 1, self)
+        test_eval("[1, 2, 3][0]", 1, self)
+        test_eval("\"1, 2, 3\"[0]", "1", self)
+        test_eval("let a,b = 1,0 a,b=b,a a", 0, self)
 
     def printer(self, string):
         self.result = string

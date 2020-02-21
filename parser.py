@@ -87,37 +87,47 @@ class Parser:
         name = self.peek(-1).lexeme
         if self.symbol_table.exists(name):
             raise ParseException("Name '{}' already exists in symbol table. Function definition impossible.".format(name))
-        # (
-        if not self.match(token.LPAREN):
-            raise ParseException("Expected ( to start the parameter list.")
-        # Parameters
-        parameter_names, parameter_types = self.parse_parameters()
-        # )
-        if not self.match(token.RPAREN):
-            raise ParseException("Expected ) to end the parameter list.")
-        # Return types
-        return_types : typing.List[str] = []
-        if self.match(token.COLON):
-            self.check_eof("Return type list expected.")
-            return_types.append(self.parse_returntype())
-            while self.match(token.COMMA):
+        # Register function name before parsing parameter names (no parameter name should have the function name!)
+        self.symbol_table.register(name, bongtypes.UnknownType())
+        try: # Everything after registering the name has to be caught to remove the name from symtable
+            # (
+            if not self.match(token.LPAREN):
+                raise ParseException("Expected ( to start the parameter list.")
+            # Parameters
+            parameter_names, parameter_types = self.parse_parameters()
+            # )
+            if not self.match(token.RPAREN):
+                raise ParseException("Expected ) to end the parameter list.")
+            # Return types
+            return_types : typing.List[str] = []
+            if self.match(token.COLON):
+                self.check_eof("Return type list expected.")
                 return_types.append(self.parse_returntype())
-        # {
-        if not self.peek().type == token.LBRACE:
-            raise ParseException("Expected function body.")
-        # Push/Pop symbol tables and parse statement block
-        func_symbol_table = symbol_table.SymbolTable(self.symbol_table)
-        self.symbol_table = func_symbol_table
-        for param,typ in zip(parameter_names,parameter_types):
-            # TODO custom types
-            self.symbol_table.register(param, self.get_bongtype(typ))
-        body = self.block_stmt()
-        self.symbol_table = self.symbol_table.parent # pop
+                while self.match(token.COMMA):
+                    return_types.append(self.parse_returntype())
+            # {
+            if not self.peek().type == token.LBRACE:
+                raise ParseException("Expected function body.")
+            # Push/Pop symbol tables and parse statement block
+            func_symbol_table = symbol_table.SymbolTable(self.symbol_table)
+            self.symbol_table = func_symbol_table
+            try:
+                for param,typ in zip(parameter_names,parameter_types):
+                    if self.symbol_table.exists(param):
+                        raise ParseException("Argument name '{}' already exists in symbol table. Function definition impossible.".format(param))
+                    # TODO custom types
+                    self.symbol_table.register(param, self.get_bongtype(typ))
+                body = self.block_stmt()
+            finally:
+                self.symbol_table = self.symbol_table.parent # pop
+        except Exception as e:
+            self.symbol_table.remove(name) # Remove function name from symtable in case of error
+            raise
         # Register function in symbol table
         # TODO Currently, we do not have custom types yet. In the future,
         # the parser will only write UnknownType into the symbol table
         # and a later layer will resolve those types by passing the ast
-        self.symbol_table.register(name, bongtypes.Function(self.get_bongtypes(parameter_types), self.get_bongtypes(return_types)))
+        self.symbol_table[name].typ = bongtypes.Function(self.get_bongtypes(parameter_types), self.get_bongtypes(return_types))
         return ast.FunctionDefinition(name, parameter_names, parameter_types, return_types, body, func_symbol_table)
 
     def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[str]]:
@@ -155,7 +165,7 @@ class Parser:
     # access to all self-defined types (which are not supported yet, 2020-02-21)
     def get_bongtype(self, name) -> bongtypes.BaseType:
         if name in bongtypes.basic_types:
-            return bongtypes.basic_types[name]
+            return bongtypes.basic_types[name]()
         raise ParseException("Unknown type '{}'".format(name))
     def get_bongtypes(self, names : typing.List[str]) -> bongtypes.TypeList:
         l = bongtypes.TypeList([])
@@ -188,7 +198,7 @@ class Parser:
         # but nevertheless, we can end up in errors when an evaluation error
         # or a typecheck error occurs. So, we need a different approach for
         # cleaning up the parser's internal state after subsequent errors.
-        except ParseException as e:
+        except Exception as e:
             for name in names:
                 self.symbol_table.remove(name)
             raise
@@ -269,18 +279,20 @@ class Parser:
             raise ParseException("Expected { for block statement.")
         block_symbol_table = symbol_table.SymbolTable(self.symbol_table)
         self.symbol_table = block_symbol_table
-        statements : typing.List[ast.BaseNode] = []
-        while self.peek().type != token.RBRACE:
-            self.check_eof("Expected statement for block body.")
-            statements.append(self.stmt())
-        self.check_eof("missing } for block statement")
-        if not self.match(token.RBRACE):
-            raise ParseException("Missing } for block statement.")
-        self.symbol_table = self.symbol_table.parent
+        try:
+            statements : typing.List[ast.BaseNode] = []
+            while self.peek().type != token.RBRACE:
+                self.check_eof("Expected statement for block body.")
+                statements.append(self.stmt())
+            self.check_eof("missing } for block statement")
+            if not self.match(token.RBRACE):
+                raise ParseException("Missing } for block statement.")
+        finally:
+            self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
     def assignment(self) -> ast.BaseNode:
-        lhs : ast.BaseNode = ast.ExpressionList(self.parse_commata_expressions())
+        lhs = self.parse_commata_expressions()
         if self.match(token.ASSIGN):
             rhs : ast.BaseNode = self.assignment()
             lhs = ast.BinOp(lhs, "=", rhs)

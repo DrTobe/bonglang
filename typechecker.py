@@ -76,6 +76,8 @@ class TypeChecker:
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
+                assert isinstance(node.lhs, ast.ExpressionList)
+                assert isinstance(node.rhs, ast.ExpressionList)
                 return self.assign(node.lhs, node.rhs)
             # For BinOps, most bongtypes' operators are overloaded
             # Not overloaded: 'and' and 'or'
@@ -205,15 +207,14 @@ class TypeChecker:
             # The function interface should already be completely in the symbol table.
             # Here, we only check that the function block is valid and that it returns
             # what we expect!
+            func = self.symbol_table[node.name].typ # bongtypes.Function
             self.push_symtable(node.symbol_table)
             try:
                 # TODO If something goes wrong here, we have to remove the name from the symbol-table
-                func = self.symbol_table[node.name].typ # bongtypes.Function
                 expect = func.return_types
                 actual = bongtypes.TypeList([])
                 ret = self.check(node.body)
-                if ret: # None is not iterable
-                    assert isinstance(ret, bongtypes.TypeList)
+                if isinstance(ret, bongtypes.TypeList): # None is not iterable
                     for typ in ret:
                         actual.append(ret)
                 if not expect.sametype(actual):
@@ -224,7 +225,7 @@ class TypeChecker:
         if isinstance(node, ast.FunctionCall):
             if not self.symbol_table.exists(node.name):
                 raise bongtypes.BongtypeException("Function '{}' not found.".format(node.name))
-            func = self.symbol_table[node.name]
+            func = self.symbol_table[node.name].typ
             if type(func)!=bongtypes.Function:
                 raise bongtypes.BongtypeException("'{}' is not a function.".format(node.name))
             argtypes = self.check(node.args)
@@ -245,7 +246,7 @@ class TypeChecker:
                 raise bongtypes.BongtypeException("Number of expressions on rhs of let statement does not match the number of variables.")
             for name, result in zip(node.names,results):
                 sym = self.symbol_table[name]
-                if sym.typ==bongtypes.AutoType:
+                if sym.typ.sametype(bongtypes.AutoType()):
                     sym.typ = result
                 elif not sym.typ.sametype(result):
                     raise bongtypes.BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(node.name, sym.typ, result))
@@ -273,8 +274,19 @@ class TypeChecker:
             raise Exception("unknown ast node")
         return None
 
-    def assign(self, lhs, rhs):
-        raise Exception("not implemented yet")
+    def assign(self, lhs : ast.ExpressionList, rhs : ast.ExpressionList) -> bongtypes.BaseType:
+        if len(lhs)!=len(rhs):
+            raise bongtypes.BongtypeException("Number of variables and number of expressions for assignment do not match.")
+        for i in range(len(lhs)):
+            var = lhs[i]
+            exp = rhs[i]
+            if not (isinstance(var, ast.Variable) or isinstance(var, ast.IndexAccess)):
+                raise bongtypes.BongtypeException("Lhs of assignment must be a variable!")
+            vartyp = self.check(var)
+            exptyp = self.check(exp)
+            if not vartyp.sametype(exptyp):
+                raise bongtypes.BongtypeException("Types of variable and expression in assignment do not match. Variable is '{}', expression is '{}'.".format(vartyp, exptyp))
+            return vartyp
 
     def push_symtable(self, new_symtable : symbol_table.SymbolTable):
         self.symbol_table = new_symtable

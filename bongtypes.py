@@ -112,11 +112,15 @@ class Function(BaseType):
 # as long as we do not support custom types
 class UnknownType(BaseType):
 	def sametype(self, other):
-		raise Exception("not implemented")
+		if type(other)==UnknownType:
+			return True
+		return False
 # Pseudo-type for let statements with automatic type resolution
 class AutoType(BaseType):
 	def sametype(self, other):
-		raise Exception("not implemented")
+		if type(other)==AutoType:
+			return True
+		return False
 
 # Pseudo-type for return statments
 class ReturnType(BaseType):
