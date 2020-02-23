@@ -179,7 +179,7 @@ class Parser:
             raise Exception("Expected return statement.")
         if self.match(token.SEMICOLON):
             return ast.Return()
-        expr = self.expression()
+        expr = self.parse_commata_expressions()
         self.match(token.SEMICOLON)
         return ast.Return(expr)
 

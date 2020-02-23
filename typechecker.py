@@ -1,6 +1,7 @@
 import ast
 import symbol_table
 import bongtypes
+from bongtypes import TypeList, BongtypeException
 
 import typing
 
@@ -17,17 +18,18 @@ class TypeChecker:
         pass
 
     def checkprogram(self, program : ast.Program):
-        print(program.symbol_table)
-        print(program)
+        # DEBUG
+        #print(program.symbol_table)
+        #print(program)
         self.symbol_table = program.symbol_table
         for stmt in program.statements:
-            res = self.check(stmt)
-            if isinstance(res, bongtypes.ReturnType):
+            res, turn = self.check(stmt)
+            if turn:
                 # TODO check that expression evaluates to INT
                 pass
         return True # TODO is there any return type?
 
-    def check(self, node : ast.BaseNode) -> typing.Optional[bongtypes.BaseType]:
+    def check(self, node : ast.BaseNode) -> typing.Tuple[TypeList, bool]:
         if isinstance(node, ast.Block):
             self.push_symtable(node.symbol_table)
             try:
@@ -35,113 +37,140 @@ class TypeChecker:
                 # whole block is consistent. Store return types in block_result.
                 block_result = None
                 for stmt in node.stmts:
-                    result = self.check(stmt)
-                    if isinstance(result, bongtypes.ReturnType):
-                        if block_result == None: # initialize
-                            block_result = result
-                        elif not some(block_result).sametype(result): # ensure that all returns are the same
-                                raise bongtypes.BongtypeException("Return type does not match previous return type in block.")
+                    res, turn = self.check(stmt)
+                    if turn:
+                        if block_result == None:
+                            # initialize
+                            block_result = res
+                        else:
+                            # ensure that all returns are the same
+                            assert isinstance(block_result, TypeList)
+                            if not block_result.sametype(res):
+                                raise BongtypeException("Return type does not match previous return type in block.")
             finally:
                 self.pop_symtable()
-            return block_result
+            if block_result != None:
+                assert isinstance(block_result, TypeList)
+                return block_result, True
+            return TypeList([]), False
         if isinstance(node, ast.Return):
             if node.result == None:
-                return bongtypes.ReturnType(None)
-            result = self.check(node.result)
-            return bongtypes.ReturnType(result)
+                return bongtypes.TypeList([]), True
+            res, turn = self.check(node.result) # turn should be false here
+            return res, True
         if isinstance(node, ast.IfElseStatement):
-            if type(self.check(node.cond))!=bongtypes.Boolean:
-                raise bongtypes.BongtypeException("If statement requires boolean condition.")
-            a = self.check(node.thn)
-            b = None # so that b is not undefined
+            cond, turn = self.check(node.cond)
+            if len(cond)==0 or type(cond[0])!=bongtypes.Boolean:
+                raise BongtypeException("If statement requires boolean condition.")
+            a, aturn = self.check(node.thn)
+            b, bturn = a, aturn # so that b is not undefined
             if node.els != None:
-                b = self.check(somenode(node.els))
+                b, bturn = self.check(somenode(node.els))
             # 1. if { } else { } -> OK
             # 2. if { return } else { } -> OK
             # 3. if { } else { return } -> OK
             # 4. if { return } else { } -> returns should match!
             # (Also see type checking for Block that ensures return-type equality)
-            if a!=None and b!=None: # 4
-                if some(a).sametype(b):
-                    return a
+            if aturn and bturn: # 4
+                if a.sametype(b):
+                    return a, True
                 else:
-                    raise bongtypes.BongtypeException("'If' and 'Else' branch's return type do not match.")
-            if b!=None:             # 3
-                return b
-            return a                # 1 & 2
+                    raise BongtypeException("'If' and 'Else' branch's return type do not match.")
+            if bturn:           # 3
+                return b, True
+            return a, aturn     # 1 & 2
         if isinstance(node, ast.WhileStatement):
             if type(self.check(node.cond))!=bongtypes.Boolean:
-                raise bongtypes.BongtypeException("While statement requires boolean condition.")
+                raise BongtypeException("While statement requires boolean condition.")
             return self.check(node.t)
         if isinstance(node, ast.BinOp):
             op = node.op
             if op == "=":
+                # Multiple assignments are parsed/executed rhs-first
+                # so we only have to switch-case the rhs
+                if isinstance(node.rhs, ast.BinOp): # Multiple assignments at once
+                    if node.rhs.op != "=":
+                        raise BongtypeException("Assignment expected!")
+                rhs, turn = self.check(node.rhs)
                 assert isinstance(node.lhs, ast.ExpressionList)
-                assert isinstance(node.rhs, ast.ExpressionList)
-                return self.assign(node.lhs, node.rhs)
+                for var in node.lhs:
+                    if not (isinstance(var, ast.Variable) or isinstance(var, ast.IndexAccess)):
+                        raise BongtypeException("Lhs of assignment must be a variable!")
+                lhs, turn = self.check(node.lhs)
+                if not lhs.sametype(rhs):
+                    raise BongtypeException("Variable and expression types in assignment do not match.")
+                return lhs, False
             # For BinOps, most bongtypes' operators are overloaded
             # Not overloaded: 'and' and 'or'
-            lhs = some(self.check(node.lhs))
-            rhs = some(self.check(node.rhs))
+            lhslist, turn = self.check(node.lhs)
+            rhslist, turn = self.check(node.rhs)
+            assert len(lhslist)==1 and len(rhslist)==1
+            lhstyp = lhslist[0]
+            rhstyp = rhslist[0]
             if op == "+":
-                return lhs + rhs
+                return TypeList([lhstyp + rhstyp]), False
             if op == "-":
-                return lhs - rhs
+                return TypeList([lhstyp - rhstyp]), False
             if op == "*":
-                return lhs * rhs
+                return TypeList([lhstyp * rhstyp]), False
             if op == "/":
-                return lhs // rhs
+                return TypeList([lhstyp // rhstyp]), False
             if op == "%":
-                return lhs % rhs
+                return TypeList([lhstyp % rhstyp]), False
             if op == "^":
-                return lhs ** rhs
+                return TypeList([lhstyp ** rhstyp]), False
             if op == "&&":
-                if type(lhs)!=bongtypes.Boolean:
-                    raise bongtypes.BongtypeException("Logical 'and' expects boolean operands. Left operand is not boolean.")
-                if type(rhs)!=bongtypes.Boolean:
-                    raise bongtypes.BongtypeException("Logical 'and' expects boolean operands. Right operand is not boolean.")
-                return bongtypes.Boolean()
+                if type(lhstyp)!=bongtypes.Boolean:
+                    raise BongtypeException("Logical 'and' expects boolean operands. Left operand is not boolean.")
+                if type(rhstyp)!=bongtypes.Boolean:
+                    raise BongtypeException("Logical 'and' expects boolean operands. Right operand is not boolean.")
+                return TypeList([bongtypes.Boolean()]), False
             if op == "||":
-                if type(lhs)!=bongtypes.Boolean:
-                    raise bongtypes.BongtypeException("Logical 'or' expects boolean operands. Left operand not boolean.")
-                if type(rhs)!=bongtypes.Boolean:
-                    raise bongtypes.BongtypeException("Logical 'or' expects boolean operands. Right operand is not boolean.")
-                return bongtypes.Boolean()
+                if type(lhstyp)!=bongtypes.Boolean:
+                    raise BongtypeException("Logical 'or' expects boolean operands. Left operand not boolean.")
+                if type(rhstyp)!=bongtypes.Boolean:
+                    raise BongtypeException("Logical 'or' expects boolean operands. Right operand is not boolean.")
+                return TypeList([bongtypes.Boolean()]), False
             if op == "==":
-                return lhs.eq(rhs)
+                return TypeList([lhstyp.eq(rhstyp)]), False
             if op == "!=":
-                return lhs.ne(rhs)
+                return TypeList([lhstyp.ne(rhstyp)]), False
             if op == "<":
-                return lhs < rhs
+                return TypeList([lhstyp < rhstyp]), False
             if op == ">":
-                return lhs > rhs
+                return TypeList([lhstyp > rhstyp]), False
             if op == "<=":
-                return lhs <= rhs
+                return TypeList([lhstyp <= rhstyp]), False
             if op == ">=":
-                return lhs >= rhs
+                return TypeList([lhstyp >= rhstyp]), False
             else:
                 raise Exception("unrecognised binary operator: " + str(node.op))
         elif isinstance(node, ast.UnaryOp):
             op = node.op
             if op == "!":
-                if type(node.rhs)!=bongtypes.Boolean:
-                    raise bongtypes.BongtypeException("Logical 'not' expects boolean operand.")
-                return bongtypes.Boolean()
+                rhs, turn = self.check(node.rhs)
+                if len(rhs)!=1 or type(rhs[0])!=bongtypes.Boolean:
+                    raise BongtypeException("Logical 'not' expects boolean operand.")
+                return TypeList([bongtypes.Boolean()]), False
             if op == "-":
-                if not (type(node.rhs)==bongtypes.Integer or type(node.rhs)==bongtypes.Float):
-                    raise bongtypes.BongtypeException("Negate expects number.")
-                return node.rhs
+                rhstype, turn = self.check(node.rhs)
+                if len(rhstype)!=1 or not (type(rhstype[0])==bongtypes.Integer or type(rhstype[0])==bongtypes.Float):
+                    raise BongtypeException("Negate expects number.")
+                return rhstype, False
             raise Exception("unrecognised unary operator: " + str(node.op))
         elif isinstance(node, ast.Integer):
-            return bongtypes.Integer()
+            return TypeList([bongtypes.Integer()]), False
         elif isinstance(node, ast.Float):
-            return bongtypes.Float()
+            return TypeList([bongtypes.Float()]), False
         elif isinstance(node, ast.String):
-            return bongtypes.String()
+            return TypeList([bongtypes.String()]), False
         elif isinstance(node, ast.Bool):
-            return bongtypes.Boolean()
+            return TypeList([bongtypes.Boolean()]), False
         elif isinstance(node, ast.Pipeline):
             # TODO Pipelines unchecked until now!
+            import sys # To print on stderr
+            print("Warning: ast.Pipeline not properly type-checked.", file=sys.stderr) # t.length unused
+            return TypeList([bongtypes.Integer()]), False
             raise Exception("not implemented yet")
             """
             if len(node.elements) < 2:
@@ -187,22 +216,24 @@ class TypeChecker:
                 return lastProcess.returncode
                 """
         elif isinstance(node, ast.Variable):
-            return self.symbol_table.get(node.name).typ
+            return TypeList([self.symbol_table.get(node.name).typ]), False
         elif isinstance(node, ast.IndexAccess):
-            index = self.check(node.rhs)
-            if type(index)!=bongtypes.Integer:
-                raise bongtypes.BongtypeException("Indexing requires Integer.")
-            lhs = some(self.check(node.lhs)) # assert
-            if isinstance(lhs, bongtypes.String): # bong string
-                return bongtypes.String()
-            if isinstance(lhs, bongtypes.Array): # bong array
-                return lhs.contained_type
+            index, turn = self.check(node.rhs)
+            if len(index)!=1 or type(index[0])!=bongtypes.Integer:
+                raise BongtypeException("Indexing requires Integer.")
+            lhs, turn = self.check(node.lhs)
+            if len(lhs)!=1:
+                raise BongtypeException("Indexing requires a single variable.")
+            if isinstance(lhs[0], bongtypes.String): # bong string
+                return lhs, False
+            if isinstance(lhs[0], bongtypes.Array): # bong array
+                return TypeList([lhs[0].contained_type]), False
             # TODO!
             """
             if isinstance(lhs, list): # sys_argv
                 return lhs[index]
                 """
-            raise bongtypes.BongtypeException("IndexAccess with unsupported type.")
+            raise BongtypeException("IndexAccess with unsupported type.")
         if isinstance(node, ast.FunctionDefinition):
             # The function interface should already be completely in the symbol table.
             # Here, we only check that the function block is valid and that it returns
@@ -210,83 +241,96 @@ class TypeChecker:
             func = self.symbol_table[node.name].typ # bongtypes.Function
             self.push_symtable(node.symbol_table)
             try:
-                # TODO If something goes wrong here, we have to remove the name from the symbol-table
                 expect = func.return_types
-                actual = bongtypes.TypeList([])
-                ret = self.check(node.body)
-                if isinstance(ret, bongtypes.TypeList): # None is not iterable
-                    for typ in ret:
-                        actual.append(ret)
+                actual, turn = self.check(node.body)
                 if not expect.sametype(actual):
-                    raise bongtypes.BongtypeException("Function return type does not match function declaration. Declared '{}' but returned '{}'.".format(expect, actual))
+                    raise BongtypeException("Function return type does not match function declaration. Declared '{}' but returned '{}'.".format(expect, actual))
+                # Additionally, check that the last statement in function definition is
+                # a return statement. Admittedly, this is a rather strict requirement
+                # because it forbids "aborting" a function in the middle.
+                if len(expect) > 0: # Only enforce this if we expect a return
+                    nomatch = False
+                    if len(node.body.stmts) == 0:
+                        nomatch = True
+                    else:
+                        if not isinstance(node.body.stmts[-1], ast.Return):
+                            nomatch = True
+                    if nomatch:
+                        # https://stackoverflow.com/a/3056270
+                        from inspect import currentframe, getframeinfo
+                        from types import FrameType
+                        filename, linenum = "unknown", -1
+                        frame = currentframe()
+                        if isinstance(frame, FrameType):
+                            frameinfo = getframeinfo(frame)
+                            filename, linenum = frameinfo.filename, frameinfo.lineno+2
+                        raise BongtypeException(("Function declaration expects return type '{}' but"
+                            " function definition does not end with a return statement. Admittedly,"
+                            " we would only have to check that the top-level ast.Block of the"
+                            " function body contains at least one return statement but with the"
+                            " current design of the TypeChecker, this is not so simple. Feel free"
+                            " to improve this at '{}', line {}").format(expect, filename, linenum))
+            except BongtypeException as e:
+                # In case of error, remove function from symbol table
+                self.symbol_table.remove(node.name)
+                raise
             finally:
                 self.pop_symtable()
-            return None # FunctionDefinition itself returns nothing
+            return TypeList([]), False # FunctionDefinition itself returns nothing
         if isinstance(node, ast.FunctionCall):
             if not self.symbol_table.exists(node.name):
-                raise bongtypes.BongtypeException("Function '{}' not found.".format(node.name))
+                raise BongtypeException("Function '{}' not found.".format(node.name))
             func = self.symbol_table[node.name].typ
             if type(func)!=bongtypes.Function:
-                raise bongtypes.BongtypeException("'{}' is not a function.".format(node.name))
-            argtypes = self.check(node.args)
+                raise BongtypeException("'{}' is not a function.".format(node.name))
+            argtypes, turn = self.check(node.args)
             if not func.parameter_types.sametype(argtypes):
-                raise bongtypes.BongtypeException("Function '{}' expects parameters of type '{}' but '{}' were given.".format(node.name, func.parameter_types, argtypes))
+                raise BongtypeException("Function '{}' expects parameters of type '{}' but '{}' were given.".format(node.name, func.parameter_types, argtypes))
             # If everything goes fine (function can be called), it returns
             # whatever the function declaration says \o/
-            return func.return_types
+            return func.return_types, False
         elif isinstance(node, ast.SysCall):
-            return bongtypes.Integer()
+            return TypeList([bongtypes.Integer()]), False
         elif isinstance(node, ast.Print):
-            return None
+            return TypeList([]), False
         elif isinstance(node, ast.Let):
-            # TODO I guess we have to enforce that the rhs of a let definitely contains an expressionlist
-            results = self.check(node.expr)
-            assert isinstance(results, bongtypes.TypeList)
+            results, turn = self.check(node.expr)
             if len(node.names) != len(results):
-                raise bongtypes.BongtypeException("Number of expressions on rhs of let statement does not match the number of variables.")
+                raise BongtypeException("Number of expressions on rhs of let statement does not match the number of variables.")
             for name, result in zip(node.names,results):
                 sym = self.symbol_table[name]
                 if sym.typ.sametype(bongtypes.AutoType()):
                     sym.typ = result
                 elif not sym.typ.sametype(result):
-                    raise bongtypes.BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(node.name, sym.typ, result))
-                return None
+                    raise BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
+            return TypeList([]), False
         elif isinstance(node, ast.Array):
-            if len(node.elements)==0:
-                raise bongtypes.BongtypeException("Empty arrays are not supported (yet?) because the type of the array can not be determined.")
-            typ = self.check(node.elements[0])
-            if typ==None:
-                raise bongtypes.BongtypeException("Arrays must contain values of any type. First element has no type.")
-            #for index, e in enumerate(node.elements, start=1): # TODO will this work?
-            for i, expr in enumerate(node.elements): # TODO will this work?
-                t = self.check(node.elements[index])
-                if not typ.sametype(t):
-                    raise bongtypes.BongtypeException("All elements in an array must be of the same type. First element is '{}' but '{}' was found (element index {}).".format(typ, t, index))
-            return bongtypes.Array(typ)
+            # Super complicated things can happen here:
+            # Imagine the array contains function calls like
+            # arr = [foonc(), baar()]
+            # and those functions return multiple values.
+            # Then, check(ast.Array.elements : ExpressionList) -- see below -- creates
+            # a TypeList and the multiple return values from the functions are TypeLists
+            # themselves. When those are added to the main TypeList, it is flattened
+            # automatically. In the result, we just have a List of types. And here, we
+            # just have to check that all those types are equal.
+            # I'm fascinated how everything magically works automatically. Isn't that beautiful?
+            types, turn = self.check(node.elements)
+            if len(types)==0:
+                raise BongtypeException("Empty arrays are not supported (yet?) because the type of the array can not be determined.")
+            for i, typ in enumerate(types):
+                if not typ.sametype(types[0]):
+                    raise BongtypeException("All elements in an array must be of the same type. First element is '{}' but '{}' was found (element index {}).".format(types[0], typ, index))
+            return TypeList([bongtypes.Array(typ)]), False
         elif isinstance(node, ast.ExpressionList):
             types = bongtypes.TypeList([])
             for exp in node:
-                typ = self.check(exp)
-                if typ != None:
-                    types.append(typ) # TypeList is automatically flattened
-            return types
+                typ, turn = self.check(exp)
+                types.append(typ) # TypeLists are automatically flattened
+            return types, False
         else:
             raise Exception("unknown ast node")
         return None
-
-    def assign(self, lhs : ast.ExpressionList, rhs : ast.ExpressionList) -> bongtypes.BaseType:
-        if len(lhs)!=len(rhs):
-            raise bongtypes.BongtypeException("Number of variables and number of expressions for assignment do not match.")
-        for i in range(len(lhs)):
-            var = lhs[i]
-            exp = rhs[i]
-            if not (isinstance(var, ast.Variable) or isinstance(var, ast.IndexAccess)):
-                raise bongtypes.BongtypeException("Lhs of assignment must be a variable!")
-            vartyp = self.check(var)
-            exptyp = self.check(exp)
-            if not vartyp.sametype(exptyp):
-                raise bongtypes.BongtypeException("Types of variable and expression in assignment do not match. Variable is '{}', expression is '{}'.".format(vartyp, exptyp))
-            return vartyp
 
     def push_symtable(self, new_symtable : symbol_table.SymbolTable):
         self.symbol_table = new_symtable

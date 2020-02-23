@@ -164,7 +164,7 @@ def main():
             try:
                 program = p.compile()
                 # TODO WIP
-                #typecheck.checkprogram(program)
+                typecheck.checkprogram(program)
                 evaluated = evaluator.evaluate(program)
                 code = ""
                 if evaluated != None:

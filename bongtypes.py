@@ -39,6 +39,11 @@ class BaseType:
 	def __ne__(self, other):
 		return self.comp(other)
 	"""
+	# Instead, use:
+	def eq(self, other):
+		return False
+	def ne(self, other):
+		return False
 	def __gt__(self, other):
 		return self.comp(other)
 	def __ge__(self, other):
@@ -62,16 +67,20 @@ class BaseType:
 	# It has to be overloaded for types that contain other types.
 	def sametype(self, other):
 		return type(self)==type(other)
+	def __str__(self):
+		return "BaseType (please override the __str__ method for subtypes!)"
 
 # Meta-type for expression lists
-class TypeList(BaseType):
+# TypeList is a flattened list so it can not contain a TypeList itself.
+# See: TypeList does not derive from BaseType so it can not contain itself.
+# Nice!
+class TypeList:
 	def __init__(self, contained_types : typing.List[BaseType]):
 		self.contained_types = contained_types
 	# Flattened append (no TypeList inside a TypeList)
-	def append(self, element : BaseType):
-		if type(element)==TypeList:
-			tlist = typing.cast(TypeList,element)
-			for typ in tlist.contained_types:
+	def append(self, element): # element : typing.Union[BaseType, TypeList] -> impossible because TypeList not defined yet.
+		if isinstance(element, TypeList):
+			for typ in element.contained_types:
 				self.contained_types.append(typ)
 		else:
 			self.contained_types.append(element)
@@ -98,6 +107,9 @@ class TypeList(BaseType):
 			if not a.sametype(b):
 				return False
 		return True
+	def __str__(self):
+		return "TypeList [" + ", ".join(map(str,self.contained_types)) + "]"
+
 
 # No first-class type but required to mark functions in the symbol table
 class Function(BaseType):
@@ -106,6 +118,11 @@ class Function(BaseType):
 		self.return_types = return_types
 	def sametype(self, other):
 		raise Exception("not implemented")
+	def __str__(self):
+		s = "Function (" + str(self.parameter_types) + ")"
+		if len(self.return_types) > 0:
+			s += " : " + str(self.return_types)
+		return s
 
 # Pseudo type used by the parser to comply to typing constraints
 # TODO Currently unused because we still resolve types in the parser
@@ -115,25 +132,16 @@ class UnknownType(BaseType):
 		if type(other)==UnknownType:
 			return True
 		return False
+	def __str__(self):
+		return "UnknownType"
 # Pseudo-type for let statements with automatic type resolution
 class AutoType(BaseType):
 	def sametype(self, other):
 		if type(other)==AutoType:
 			return True
 		return False
-
-# Pseudo-type for return statments
-class ReturnType(BaseType):
-	def __init__(self, contained_type : typing.Optional[BaseType]):
-		self.contained_type = contained_type
-	def sametype(self, other):
-		if type(other)==ReturnType:
-			if self.contained_type != None:
-				return self.contained_type.sametype(other.contained_type)
-			else:
-				return other.contained_type == None
-		else:
-			return False
+	def __str__(self):
+		return "AutoType"
 
 class Integer(BaseType):
 	def __add__(self, other):
@@ -170,6 +178,8 @@ class Integer(BaseType):
 		if type(other)==Integer or type(other)==Float:
 			return Boolean()
 		raise BongtypeException("The second operand should be Integer or Float.")
+	def __str__(self):
+		return "Integer"
 
 class Float(BaseType):
 	def __add__(self, other):
@@ -206,6 +216,8 @@ class Float(BaseType):
 		if type(other)==Integer or type(other)==Float:
 			return Boolean()
 		raise BongtypeException("The second operand should be Integer or Float.")
+	def __str__(self):
+		return "Float"
 
 class Boolean(BaseType):
 	def eq(self, other):
@@ -216,6 +228,8 @@ class Boolean(BaseType):
 		if type(other)==Boolean:
 			return Boolean()
 		raise BongtypeException("The second operand should be a Boolean.")
+	def __str__(self):
+		return "Boolean"
 
 class String(BaseType):
 	def __add__(self, other):
@@ -230,6 +244,8 @@ class String(BaseType):
 		if type(other)==String:
 			return Boolean()
 		raise BongtypeException("The second operand should be a String.")
+	def __str__(self):
+		return "String"
 
 class Array(BaseType):
 	def __init__(self, contained_type : BaseType):
@@ -249,6 +265,8 @@ class Array(BaseType):
 			return self.contained_type.sametype(other.contained_type)
 		else:
 			return False
+	def __str__(self):
+		return "Array [" + str(self.contained_type) + "]"
 
 # Currently, this list of types is used to map type-strings to
 # bongtypes.BaseType (subclass) instances. Maybe, this approach has to be
