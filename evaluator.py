@@ -403,13 +403,31 @@ class Eval:
             return 1
         try:
             if len(args) > 1:
-                os.chdir(args[1])
+                if (args[1]=="-"): # Everything bash can do, we can do better.
+                    if self.prev_directory!=None:
+                        self.change_dir(self.prev_directory)
+                else:
+                    self.change_dir(args[1])
             else:
-                os.chdir(os.path.expanduser('~'))
+                self.change_dir(os.path.expanduser('~'))
             return 0
         except Exception as e:
             print("bong: cd: {}".format(str(e)))
             return 1
+    def change_dir(self, new_dir):
+        prev_dir = os.getcwd()
+        os.chdir(new_dir) # This can fail so everything else happens afterwards
+        self.prev_directory = prev_dir
+        # Now, we send the escape codes to tell the terminal (emulator) the
+        # new directory
+        current_dir = os.getcwd()
+        sys.stdout.write("\x1b]7;file:"+current_dir+"\x07") # Tell the cwd
+        home_directory = os.path.expanduser("~")
+        if current_dir.startswith(home_directory):
+            window_title = "~" + current_dir[len(home_directory):] # ~ + home-dir skipped in current dir
+        else:
+            window_title = current_dir
+        sys.stdout.write("\x1b]2;bong "+window_title+"\x07") # Tell the cwd
 
     def builtin_func_len(self, val):
         return len(val.args[0])

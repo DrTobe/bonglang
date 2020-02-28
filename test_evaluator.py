@@ -32,14 +32,11 @@ class TestEvaluator(unittest.TestCase):
     def test_syscall(self):
         # TODO output should be redirected somewhere to reduce testing output
         # For now, I only run commands which do not produce any output
-        tests = [
-                #"ls examples", 0,
-                #"grep -nr bong .", 0,
-                "cd", 0, # builtin
-                "/usr/bin/true", 0,
-                "/usr/bin/false", 1,
-                ]
-        test_eval_list(self, tests)
+        #test_eval("ls examples", 0, self)
+        #test_eval("grep -nr bong .", 0, self)
+        test_eval("cd", 0, self) # builtin
+        test_eval("/usr/bin/true", 0, self)
+        test_eval("/usr/bin/false", 1, self)
 
     def test_pipe(self):
         # Since we are not able yet to redirect output, we just run pipelines
