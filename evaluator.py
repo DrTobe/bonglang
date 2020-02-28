@@ -421,13 +421,13 @@ class Eval:
         # Now, we send the escape codes to tell the terminal (emulator) the
         # new directory
         current_dir = os.getcwd()
-        sys.stdout.write("\x1b]7;file:"+current_dir+"\x07") # Tell the cwd
+        sys.stdout.write("\x1b]7;file:"+current_dir+"\x07") # Tell the cwd to our terminal (emulator)
         home_directory = os.path.expanduser("~")
         if current_dir.startswith(home_directory):
             window_title = "~" + current_dir[len(home_directory):] # ~ + home-dir skipped in current dir
         else:
             window_title = current_dir
-        sys.stdout.write("\x1b]2;bong "+window_title+"\x07") # Tell the cwd
+        sys.stdout.write("\x1b]2;bong "+window_title+"\x07") # Set the window title
 
     def builtin_func_len(self, val):
         return len(val.args[0])

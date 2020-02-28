@@ -57,7 +57,7 @@ class TestParser(unittest.TestCase):
 
     def test_function_definition(self):
         test_string(self, "func someFunc() { let a = 1337 }", "{\nsomeFunc() {\nlet a = 1337\n}\n}")
-        test_string(self, "func add(a : Int, b : Int) : Int { return a + b }", "{\nadd(a : Int, b : Int) : Int {\nreturn (a+b)\n}\n}")
+        test_string(self, "func add(a : int, b : int) : int { return a + b }", "{\nadd(a : int, b : int) : int {\nreturn (a+b)\n}\n}")
 
     def test_if(self):
         testData = [

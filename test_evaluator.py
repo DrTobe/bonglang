@@ -11,10 +11,10 @@ class TestEvaluator(unittest.TestCase):
     def test_function(self):
         test_eval("func f() {}", None, self)
         test_eval("func f() {} f()", None, self)
-        test_eval("func f() : Int { return 1337 } f()", 1337, self)
-        test_eval("func add(a : Int, b : Int) : Int { return a + b } add(21, 21)", 42, self)
-        test_eval("func calc(a:Int, b:Int, c:Int) : Int { return a + b * c } calc(3, 5, 7)", 38, self)
-        test_eval("func faculty(n:Int) : Int { if n <= 1 { return 1 } else { return n * 1/*faculty(n-1)*/ } return 0 } faculty(5)", 5, self) #120, self)
+        test_eval("func f() : int { return 1337 } f()", 1337, self)
+        test_eval("func add(a : int, b : int) : int { return a + b } add(21, 21)", 42, self)
+        test_eval("func calc(a:int, b:int, c:int) : int { return a + b * c } calc(3, 5, 7)", 38, self)
+        test_eval("func faculty(n:int) : int { if n <= 1 { return 1 } else { return n * faculty(n-1) } return 0 } faculty(5)", 120, self)
 
     def test_return(self):
         self.single_return_test("return\n", None)
@@ -53,8 +53,8 @@ class TestEvaluator(unittest.TestCase):
         # here that do not produce output
         test_eval('let a = "foo" a | grep foo | /usr/bin/true', 0, self)
         test_eval('let a = "foo" a | grep bar', 1, self)
-        test_eval('func a() : Str { return "foo" } a() | grep foo | /usr/bin/true', 0, self)
-        test_eval('func a() : Str { return "foo" } a() | grep bar', 1, self)
+        test_eval('func a() : str { return "foo" } a() | grep foo | /usr/bin/true', 0, self)
+        test_eval('func a() : str { return "foo" } a() | grep bar', 1, self)
         test_eval('let a = 0; echo "foo" | a; a', "foo\n", self)
         test_eval('let a=0; let b=0; echo "foo\nbar" | grep foo | a; a', "foo\n", self)
         test_eval('let a=0; let b=0; echo "foo\nbar" | grep foo | grep bar | b; b', "", self)

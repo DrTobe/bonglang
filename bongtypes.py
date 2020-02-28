@@ -273,10 +273,10 @@ class Array(BaseType):
 # revised in the future so that self-defined types can be used.
 # -> coffee-discussion :)
 basic_types = {
-		"Int": Integer,
-		"Float": Float,
-		"Bool": Boolean,
-		"Str": String,
+		"int": Integer,
+		"float": Float,
+		"bool": Boolean,
+		"str": String,
 }
 
 class BongtypeException(Exception):
