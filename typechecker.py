@@ -181,55 +181,58 @@ class TypeChecker:
             return TypeList([bongtypes.String()]), Return.NO
         elif isinstance(node, ast.Bool):
             return TypeList([bongtypes.Boolean()]), Return.NO
+        elif isinstance(node, ast.SysCall):
+            return TypeList([bongtypes.Integer()]), Return.NO
         elif isinstance(node, ast.Pipeline):
             # TODO Pipelines unchecked until now!
-            import sys # To print on stderr
-            print("Warning: ast.Pipeline not properly type-checked.", file=sys.stderr) # t.length unused
-            return TypeList([bongtypes.Integer()]), Return.NO
-            raise Exception("not implemented yet")
-            """
+            # Also see evaluator -> ast.Pipeline, it is very similar
             if len(node.elements) < 2:
-                raise Exception("Pipelines should have more than one element. This seems to be a parser bug.")
-            syscalls = []
+                raise BongtypeException("Pipelines should have more than one element. This seems to be a parser bug.")
+            programcalls = []
+            strtype = TypeList([bongtypes.String()]) # used for checking stdin and stdout
+            # Check pipeline input types
             if isinstance(node.elements[0], ast.SysCall):
-                syscalls.append(node.elements[0])
-                stdin = None
+                programcalls.append(node.elements[0])
             else:
-                stdin = self.evaluate(node.elements[0])
-            syscalls.extend(node.elements[1:-1])
+                stdin, turn = self.check(node.elements[0]) # turn == NO
+                if not stdin.sametype(strtype):
+                    raise BongtypeException("The input to a pipeline should evaluate to a string, {} was found instead.".format(stdin))
+            # Collect programcalls
+            programcalls.extend(node.elements[1:-1])
+            # Check pipeline output types
             if isinstance(node.elements[-1], ast.SysCall):
-                syscalls.append(node.elements[-1])
-                assignto = None
+                programcalls.append(node.elements[-1])
             else:
                 assignto = node.elements[-1]
-            # Special case: piping an ordinary expression into a variable
-            if len(syscalls) == 0:
-                if assignto == None:
-                    raise Exception("Assertion error: Whenever a pipeline has no syscalls, it should consist of an expression that is assigned to something. No assignment was found here.")
-                return self.assign(assignto, stdin)
-            processes = []
-            for syscall in syscalls[:-1]:
-                process = self.callprogram(syscall, stdin, True)
-                processes.append(process)
-                stdin = process.stdout
-            numOutputPipes = 0 if assignto==None else self.numInputsExpected(assignto)
-            lastProcess = self.callprogram(syscalls[-1], stdin, numOutputPipes)
-            # So, there is this single case that is different from everything else
-            # and that needs special treatment:
-            # Whenever the first process is opened with stdin=PIPE, we must
-            # close its stdin except when this is the only process, then we
-            # must not close the stdin, because then communicate() will fail.
-            if not isinstance(node.elements[0], ast.SysCall) and len(processes):
-                processes[0].stdin.close()
-            outstreams = lastProcess.communicate()
-            for process in processes:
-                process.wait()
-            if assignto != None:
-                self.assign(assignto, list(outstreams[:numOutputPipes]))
-                return lastProcess.returncode
-            else:
-                return lastProcess.returncode
-                """
+                # a) Variable
+                # a2) Variables in ExpressionList
+                # b) IndexAccess (not supported in parser yet)
+                # c) PipelineLet
+                # For all three (currently two) cases, the assignee must evaluate to string
+                # TODO It seems to me that stronger typing would clear things here a bit
+                if isinstance(assignto, ast.Variable): # a)
+                    stdout, turn = self.check(assignto)
+                    if not stdout.sametype(strtype):
+                        raise BongtypeException("The output of a pipeline can only be written to a string variable, {} was found instead.".format(stdout))
+                elif isinstance(assignto, ast.ExpressionList): # a2)
+                    outNerr, turn = self.check(assignto)
+                    if not outNerr.sametype(TypeList([bongtypes.String(), bongtypes.String()])):
+                        raise BongtypeException("The output of a pipeline can only be written to two string variables, '{}' was found instead.".format(outNerr))
+                elif isinstance(assignto, ast.PipelineLet):
+                    names = assignto.names
+                    if len(names) > 2 or len(names)==0:
+                        raise BongtypeException("The output of a pipeline can only be written to one or two string variables, let with {} variables  was found instead.".format(len(names)))
+                    for name in names:
+                        sym = self.symbol_table[name]
+                        if sym.typ.sametype(bongtypes.AutoType()):
+                            sym.typ = strtype
+                        elif not sym.typ.sametype(strtype):
+                            raise BongtypeException("The output of a pipeline can only be written to string variables, let with explicit type '{}' was found instead.".format(sym.typ))
+            # Check that everything in between actually is a program call
+            for pcall in programcalls:
+                if not isinstance(pcall, ast.SysCall):
+                    raise BongtypeException("Everything in the center of a pipeline must be a programmcall, '{}' was found instead.".format(pcall))
+            return TypeList([bongtypes.Integer()]), Return.NO
         elif isinstance(node, ast.Variable):
             return TypeList([self.symbol_table.get(node.name).typ]), Return.NO
         elif isinstance(node, ast.IndexAccess):
@@ -263,6 +266,7 @@ class TypeChecker:
                 # Enforce that there is a return statement if we require it
                 if len(expect) > 0: # Return required
                     if turn != Return.YES: # Return not guaranteed
+                        raise BongtypeException("Point of no return reached!")
                         raise BongtypeException("Function declaration expects return type '{}' but"
                             " a return statement that will definitely be invoked is missing.".format(expect))
             except BongtypeException as e:
@@ -284,8 +288,6 @@ class TypeChecker:
             # If everything goes fine (function can be called), it returns
             # whatever the function declaration says \o/
             return func.return_types, Return.NO
-        elif isinstance(node, ast.SysCall):
-            return TypeList([bongtypes.Integer()]), Return.NO
         elif isinstance(node, ast.Print):
             return TypeList([]), Return.NO
         elif isinstance(node, ast.Let):

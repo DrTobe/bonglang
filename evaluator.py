@@ -129,6 +129,8 @@ class Eval:
             return node.value
         elif isinstance(node, ast.Bool):
             return node.value
+        elif isinstance(node, ast.SysCall):
+            return self.callprogram(node)
         elif isinstance(node, ast.Pipeline):
             if len(node.elements) < 2:
                 raise Exception("Pipelines should have more than one element. This seems to be a parser bug.")
@@ -211,8 +213,6 @@ class Eval:
             if isinstance(result, ReturnValue):
                 return result.value
             return result
-        elif isinstance(node, ast.SysCall):
-            return self.callprogram(node)
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
@@ -404,6 +404,7 @@ class Eval:
         try:
             if len(args) > 1:
                 if (args[1]=="-"): # Everything bash can do, we can do better.
+                    # TODO This seems to fail if prev_dir does not exist
                     if self.prev_directory!=None:
                         self.change_dir(self.prev_directory)
                 else:

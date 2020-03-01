@@ -55,10 +55,10 @@ class TestEvaluator(unittest.TestCase):
         test_eval('let a = "foo" a | grep bar', 1, self)
         test_eval('func a() : str { return "foo" } a() | grep foo | /usr/bin/true', 0, self)
         test_eval('func a() : str { return "foo" } a() | grep bar', 1, self)
-        test_eval('let a = 0; echo "foo" | a; a', "foo\n", self)
-        test_eval('let a=0; let b=0; echo "foo\nbar" | grep foo | a; a', "foo\n", self)
-        test_eval('let a=0; let b=0; echo "foo\nbar" | grep foo | grep bar | b; b', "", self)
-        test_eval('let a = "foo"; let b = 0; a | grep foo | b; b', "foo\n", self)
+        test_eval('let a = ""; echo "foo" | a; a', "foo\n", self)
+        test_eval('let a=""; let b=""; echo "foo\nbar" | grep foo | a,b; a', "foo\n", self)
+        test_eval('let a=""; let b=""; echo "foo\nbar" | grep foo | grep bar | b,a; b', "", self)
+        test_eval('let a = "foo"; a | grep foo | let b; b', "foo\n", self)
 
     def test_builtin_functions(self):
         # TODO The call() builtin will be removed 
