@@ -404,8 +404,7 @@ class Eval:
         try:
             if len(args) > 1:
                 if (args[1]=="-"): # Everything bash can do, we can do better.
-                    # TODO This seems to fail if prev_dir does not exist
-                    if self.prev_directory!=None:
+                    if hasattr(self, "prev_directory"):
                         self.change_dir(self.prev_directory)
                 else:
                     self.change_dir(args[1])
