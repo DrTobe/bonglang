@@ -5,11 +5,15 @@ import evaluator # Required for access to the builtin variables
 import sys # To print on stderr
 import bongtypes
 import typing
+import os
 
 class Parser:
-    def __init__(self, lexer, symtable=None):
+    def __init__(self, lexer, symtable=None, basepath=None):
         self.lexer = lexer
         self.init_token_access()
+
+        self.basepath = basepath if basepath != None else os.getcwd()
+
         if symtable == None:
             self.symbol_table = symbol_table.SymbolTable()
         else:
@@ -38,6 +42,8 @@ class Parser:
         return ast.Program(statements, self.symbol_table)
 
     def top_level_stmt(self) -> ast.BaseNode:
+        if self.peek().type == token.IMPORT:
+            return self.parse_import()
         if self.peek().type == token.FUNC:
             return self.parse_function_definition()
         return self.stmt()
@@ -76,6 +82,22 @@ class Parser:
                 self.peek(2).type==token.OP_DIV):
             return self.expression_stmt()
         raise ParseException("Unknown statement found.")
+
+    def parse_import(self):
+        if not self.match(token.IMPORT):
+            raise Exception("Expected import statement.")
+        path = self.peek()
+        if not self.match(token.STRING):
+            raise Exception("Expected module path as string.")
+        name = self.peek()
+        if not self.match(token.AS):
+            raise Exception("Expected as")
+        if not self.match(token.IDENTIFIER):
+            raise Exception("Expected module alias name.")
+        self.match(token.SEMICOLON)
+        if not os.path.isabs(path.lexeme):
+            path = os.path.join(self.basepath, path.lexeme)
+        return ast.Import(name.lexeme, path)
 
     def parse_function_definition(self) -> ast.FunctionDefinition:
         # FUNC foo (bar : int) : str { ... }

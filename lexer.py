@@ -143,6 +143,10 @@ class Lexer:
                 return self.create_token(token.FUNC, len(lex), lex)
             if lex == "return":
                 return self.create_token(token.RETURN, len(lex), lex)
+            if lex == "import":
+                return self.create_token(token.IMPORT, len(lex), lex)
+            if lex == "as":
+                return self.create_token(token.AS, len(lex), lex)
             return self.create_token(token.IDENTIFIER, len(lex), lex)
         if "\"" == c: # begin of a string
             lex = ""

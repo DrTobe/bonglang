@@ -37,6 +37,13 @@ class Block(BaseNode):
             result.append(str(stmt))
         return "{\n" + "\n".join(result) + "\n}"
 
+class Import(BaseNode):
+    def __init__(self, name: str, path: str):
+        self.name = name
+        self.path = path
+    def __str__(self):
+        return "import " + self.path + " as " + self.name;
+
 class Return(BaseNode):
     def __init__(self, result=None):
         self.result = result
