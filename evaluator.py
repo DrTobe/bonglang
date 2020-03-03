@@ -1,6 +1,6 @@
 import ast
 from environment import Environment
-import objects
+import bong_builtins
 
 # For subprocesses
 import os
@@ -18,24 +18,25 @@ class Eval:
     def __init__(self, printfunc=print):
         self.printfunc = printfunc
         self.environment = Environment()
-        for key, value in Eval.BUILTIN_ENVIRONMENT.items():
-            self.environment.reg_and_set(key, value)
         self.functions = Environment()
-        self.builtin_functions = {
-                "call": self.callprogram,
-                "len": self.builtin_func_len,
-                }
 
     def evaluate(self, node):
         if isinstance(node, ast.Program):
+            # Register all builtin-functions in the environment
+            for bfuncname, bfunc in bong_builtins.functions.items():
+                if not self.functions.exists(bfuncname): # For re-using in shell mode
+                    self.functions.reg_and_set(bfuncname, bfunc[0])
             # Register all functions in the environment before evaluating the
             # top-level-statements
             toplevel_statements = []
             for statement in node.statements:
                 if isinstance(statement, ast.FunctionDefinition):
                     func = statement
+                    # TODO The following check should not be necessary anymore
+                    """
                     if func.name in self.builtin_functions:
                         raise(Exception("Cannot overwrite builtin "+func.name))
+                    """
                     self.functions.reg_and_set(func.name, func)
                 else:
                     toplevel_statements.append(statement)
@@ -180,39 +181,36 @@ class Eval:
             lhs = self.evaluate(node.lhs)
             if isinstance(lhs, str): # bong string
                 return lhs[index]
-            if isinstance(lhs, objects.Array): # bong array
+            if isinstance(lhs, Array): # bong array
                 return lhs.elements[index]
             if isinstance(lhs, list): # sys_argv
                 return lhs[index]
             #return self.environment.get(node.lhs.name)[index]
         if isinstance(node, ast.FunctionCall):
-            if node.name in self.builtin_functions:
-                # TODO Here, code from the lower part of ast.FunctionCall was
-                # copied. Bad style ...
-                args = []
-                for a in node.args:
-                    args.append(self.evaluate(a))
-                result = self.builtin_functions[node.name](ast.SysCall(args))
-                if isinstance(result, ReturnValue):
-                    return result.value
-                return result
             function = self.functions.get(node.name)
-            if not isinstance(function, ast.FunctionDefinition):
-                raise Exception("can only call functions")
-            if len(function.parameter_names) != len(node.args):
-                raise Exception("wrong number of arguments")
+            if isinstance(function, ast.FunctionDefinition):
+                # TODO Obsolete thanks to typechecker?
+                if len(function.parameter_names) != len(node.args):
+                    raise Exception("wrong number of arguments")
             args = []
             for a in node.args:
                 args.append(self.evaluate(a))
-            self.push_new_env()
-            for i, param in enumerate(function.parameter_names):
-                self.environment.register(param)
-                self.environment.set(param, args[i])
-            result = self.evaluate(function.body)
-            self.pop_env()
-            if isinstance(result, ReturnValue):
-                return result.value
-            return result
+            if isinstance(function, ast.FunctionDefinition):
+                # Bong function
+                self.push_new_env()
+                try:
+                    for i, param in enumerate(function.parameter_names):
+                        self.environment.register(param)
+                        self.environment.set(param, args[i])
+                    result = self.evaluate(function.body)
+                finally:
+                    self.pop_env()
+                if isinstance(result, ReturnValue):
+                    return result.value
+                return result
+            else:
+                # Builtin function
+                return function(args)
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
@@ -231,7 +229,7 @@ class Eval:
             elements = []
             for e in node.elements:
                 elements.append(self.evaluate(e))
-            return objects.Array(elements)
+            return Array(elements)
         elif isinstance(node, ast.ExpressionList):
             results = []
             for exp in node.elements:
@@ -429,9 +427,6 @@ class Eval:
             window_title = current_dir
         sys.stdout.write("\x1b]2;bong "+window_title+"\x07") # Set the window title
 
-    def builtin_func_len(self, val):
-        return len(val.args[0])
-
     def push_env(self, new_env):
         current_env = self.environment
         self.environment = new_env
@@ -452,6 +447,18 @@ def ensureList(value):
     if not isinstance(value, list):
         return [value]
     return value
+
+class Array:
+    def __init__(self, elements):
+        self.elements = elements
+    def __str__(self):
+        elements = []
+        for e in self.elements:
+            elements.append(str(e))
+        result = "["
+        result += ", ".join(elements)
+        result += "]"
+        return result
 
 class ReturnValue:
     def __init__(self, value=None):

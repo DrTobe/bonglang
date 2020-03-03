@@ -280,9 +280,13 @@ class TypeChecker:
             if not self.symbol_table.exists(node.name):
                 raise BongtypeException("Function '{}' not found.".format(node.name))
             func = self.symbol_table[node.name].typ
-            if type(func)!=bongtypes.Function:
+            if type(func)!=bongtypes.Function and type(func)!=bongtypes.BuiltinFunction:
                 raise BongtypeException("'{}' is not a function.".format(node.name))
             argtypes, turn = self.check(node.args)
+            # Check builtin functions
+            if isinstance(func, bongtypes.BuiltinFunction):
+                return func.check(argtypes), Return.NO
+            # Otherwise, it is a bong function that has well-defined parameter types
             if not func.parameter_types.sametype(argtypes):
                 raise BongtypeException("Function '{}' expects parameters of type '{}' but '{}' were given.".format(node.name, func.parameter_types, argtypes))
             # If everything goes fine (function can be called), it returns

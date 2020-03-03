@@ -6,6 +6,7 @@ import sys # To print on stderr
 import bongtypes
 import typing
 import os
+import bong_builtins
 
 class Parser:
     def __init__(self, lexer, symtable=None, basepath=None):
@@ -18,13 +19,9 @@ class Parser:
             self.symbol_table = symbol_table.SymbolTable()
         else:
             self.symbol_table = symtable
-        # TODO Damn it! We also have to add the builtin functions to the symbol
-        # table here!!! And: Let's just use builtin functions, no builtin variables.
-        # If a variable (e.g. program call arguments) is required, it can just
-        # be encapsulated in a function call that returns that value(s).
-        for key in evaluator.Eval.BUILTIN_ENVIRONMENT:
-            if key not in self.symbol_table.names:
-                self.symbol_table.register(key, bongtypes.UnknownType()) # TODO unknown?
+        for bfuncname, bfunc in bong_builtins.functions.items():
+            if not self.symbol_table.exists(bfuncname): # For re-using symbol tables in shell mode
+                self.symbol_table.register(bfuncname, bongtypes.BuiltinFunction(bfunc[1]))
 
     def compile(self) -> ast.Program:
         statements : typing.List[ast.BaseNode] = []
@@ -215,7 +212,7 @@ class Parser:
         try:
             if not self.match(token.ASSIGN):
                 raise ParseException("Empty let statements are not supported. Always assign a value!")
-            expr : ast.BaseNode = self.assignment()
+            expr : typing.Union[ast.ExpressionList, ast.BinOp] = self.assignment()
         # TODO The following cleans up if parsing this let statement fails
         # but nevertheless, we can end up in errors when an evaluation error
         # or a typecheck error occurs. So, we need a different approach for
@@ -236,8 +233,8 @@ class Parser:
         for name,typ in zip(variable_names,variable_types):
             if self.symbol_table.exists(name):
                 raise ParseException("Name '{}' already exists in symbol table. Let statement impossible.".format(name))
-            typ = self.get_bongtype(typ) if typ!=None else bongtypes.AutoType()
-            self.symbol_table.register(name, typ) # TODO custom types
+            bongtype = self.get_bongtype(typ) if typ!=None else bongtypes.AutoType()
+            self.symbol_table.register(name, bongtype) # TODO custom types
         return variable_names
     # TODO These functions are extremely similar to
     # parse_parameters() / parse_parameter() / parse_returntype().
@@ -313,8 +310,8 @@ class Parser:
             self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
-    def assignment(self) -> ast.BaseNode:
-        lhs = self.parse_commata_expressions()
+    def assignment(self) -> typing.Union[ast.ExpressionList, ast.BinOp]:
+        lhs : typing.Union[ast.ExpressionList, ast.BinOp] = self.parse_commata_expressions()
         if self.match(token.ASSIGN):
             rhs : ast.BaseNode = self.assignment()
             lhs = ast.BinOp(lhs, "=", rhs)
@@ -383,7 +380,7 @@ class Parser:
                     self.peek(1).type == token.COMMA):
                 # Like this, we can not have more "complicated" variables
                 # (index-access or whatever) that we want to assign to.
-                elements.append(ast.ExpressionList(self.parse_commata_expressions()))
+                elements.append(self.parse_commata_expressions())
             else:
                 elements.append(self.addition())
         pipeline = ast.Pipeline(elements, False)

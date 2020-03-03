@@ -144,7 +144,7 @@ class ExpressionList(BaseNode):
         return ", ".join(map(str,self.elements))
 
 class Let(BaseNode):
-    def __init__(self, names : typing.List[str], expr : ExpressionList):
+    def __init__(self, names : typing.List[str], expr : typing.Union[ExpressionList, BinOp]): # rhs = Expressions or Assignment
         self.names = names
         self.expr = expr
     def __str__(self):

@@ -5,7 +5,6 @@ from parser import Parser, UnexpectedEof
 from typechecker import TypeChecker
 from evaluator import Eval
 from symbol_table import SymbolTable
-import objects
 
 import sys
 import traceback

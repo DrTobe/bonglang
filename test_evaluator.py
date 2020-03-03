@@ -5,7 +5,6 @@ from lexer import Lexer
 from parser import Parser
 from typechecker import TypeChecker
 from evaluator import Eval
-import objects
 
 class TestEvaluator(unittest.TestCase):
     def test_function(self):

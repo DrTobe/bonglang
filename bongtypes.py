@@ -87,7 +87,7 @@ class TypeList:
 	# The next two methods for index-access and length
 	def __len__(self):
 		return len(self.contained_types)
-	def __getitem__(self, index):
+	def __getitem__(self, index) -> BaseType:
 		return self.contained_types[index]
 	# The next two methods make this class iterable
 	def __iter__(self):
@@ -123,6 +123,17 @@ class Function(BaseType):
 		if len(self.return_types) > 0:
 			s += " : " + str(self.return_types)
 		return s
+import types # python types
+class BuiltinFunction(BaseType):
+	def __init__(self, check_func : types.FunctionType):
+		self.check_func = check_func
+	def check(self, argument_types : TypeList) -> TypeList:
+		return self.check_func(argument_types)
+	def sametype(self, other):
+		raise Exception("not implemented")
+	def __str__(self):
+		return "BuiltinFunction (" + " ??? \o/ " + ")"
+
 
 # Pseudo type used by the parser to comply to typing constraints
 # TODO Currently unused because we still resolve types in the parser
