@@ -1,6 +1,8 @@
 import token_def as token
 import symbol_table
 import typing
+import bongtypes
+from flatlist import FlatList
 
 class BaseNode:
     def __init__(self):
@@ -113,33 +115,9 @@ class Print(BaseNode):
     def __str__(self):
         return "print "+str(self.expr)+";"
 
-# TODO Very similar to bongtypes.TypeList! Can this be generalized to
-# FlatList that ExpressionList and TypeList inherit from?
-class ExpressionList(BaseNode):
+class ExpressionList(FlatList, BaseNode):
     def __init__(self, elements : typing.List[BaseNode]):
-        self.elements : typing.List[BaseNode] = elements
-    # Flattened append (no ExpressionList inside an ExpressionList)
-    def append(self, node : BaseNode):
-        if isinstance(node,ExpressionList):
-            explist = typing.cast(ExpressionList,node)
-            for elem in explist.elements:
-                self.elements.append(elem)
-        else:
-            self.elements.append(node)
-    # The next two methods for index-access and length
-    def __len__(self):
-        return len(self.elements)
-    def __getitem__(self, index):
-        return self.elements[index]
-    # The next two methods make this class iterable
-    def __iter__(self):
-        self.iterationCounter = -1
-        return self
-    def __next__(self):
-        self.iterationCounter += 1
-        if self.iterationCounter < len(self.elements):
-            return self.elements[self.iterationCounter]
-        raise StopIteration
+        super().__init__(elements)
     def __str__(self):
         return ", ".join(map(str,self.elements))
 
@@ -197,7 +175,7 @@ class SysCall(BaseNode):
         return "(call " + " ".join(self.args) + ")"
 
 class FunctionDefinition(BaseNode):
-    def __init__(self, name : str, parameter_names : typing.List[str], parameter_types : typing.List[str], return_types : typing.List[str], body : Block, symbol_table : symbol_table.SymbolTable):
+    def __init__(self, name : str, parameter_names : typing.List[str], parameter_types : typing.List[bongtypes.BongtypeIdentifier], return_types : typing.List[bongtypes.BongtypeIdentifier], body : Block, symbol_table : symbol_table.SymbolTable):
         self.name = name
         self.parameter_names = parameter_names
         self.parameter_types = parameter_types
@@ -207,12 +185,12 @@ class FunctionDefinition(BaseNode):
     def __str__(self):
         parameters = []
         for name, typ in zip(self.parameter_names, self.parameter_types):
-            parameters.append(name + " : " + typ)
+            parameters.append(name + " : " + str(typ))
         result = self.name + "("
         result += ", ".join(parameters)
         result += ") "
         if len(self.return_types) > 0:
-            result += ": " + ", ".join(self.return_types) + " "
+            result += ": " + ", ".join(map(str,self.return_types)) + " "
         result += str(self.body)
         return result
 

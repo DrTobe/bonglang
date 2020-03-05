@@ -28,7 +28,16 @@ class TypeChecker:
                 pass
         return True # TODO is there any return type?
 
-    def check(self, node : ast.BaseNode) -> typing.Tuple[TypeList, Return]:
+    # Determine the type of the ast node.
+    # expected_types is an optional TypeList that is required if an expression
+    # is ambiguous (currently only used for empty arrays, in the future maybe
+    # required for struct types).
+    # This method returns the TypeList (0, 1 or N elements) that the node will
+    # evaluate to and a return hint that tells us if the node contains a
+    # return statement and if it is sure that this return will be invoked. This
+    # information is required to check/guarantee the return type of function
+    # definitions.
+    def check(self, node : ast.BaseNode, expected_types : typing.Optional[TypeList] = None) -> typing.Tuple[TypeList, Return]:
         if isinstance(node, ast.Block):
             self.push_symtable(node.symbol_table)
             try:
@@ -246,11 +255,6 @@ class TypeChecker:
                 return lhs, Return.NO
             if isinstance(lhs[0], bongtypes.Array): # bong array
                 return TypeList([lhs[0].contained_type]), Return.NO
-            # TODO!
-            """
-            if isinstance(lhs, list): # sys_argv
-                return lhs[index]
-                """
             raise BongtypeException("IndexAccess with unsupported type.")
         if isinstance(node, ast.FunctionDefinition):
             # The function interface should already be completely in the symbol table.
@@ -295,15 +299,20 @@ class TypeChecker:
         elif isinstance(node, ast.Print):
             return TypeList([]), Return.NO
         elif isinstance(node, ast.Let):
-            results, turn = self.check(node.expr)
-            if len(node.names) != len(results):
-                raise BongtypeException("Number of expressions on rhs of let statement does not match the number of variables.")
-            for name, result in zip(node.names,results):
-                sym = self.symbol_table[name]
-                if sym.typ.sametype(bongtypes.AutoType()):
-                    sym.typ = result
-                elif not sym.typ.sametype(result):
-                    raise BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
+            try:
+                results, turn = self.check(node.expr)
+                if len(node.names) != len(results):
+                    raise BongtypeException("Number of expressions on rhs of let statement does not match the number of variables.")
+                for name, result in zip(node.names,results):
+                    sym = self.symbol_table[name]
+                    if sym.typ.sametype(bongtypes.AutoType()):
+                        sym.typ = result
+                    elif not sym.typ.sametype(result):
+                        raise BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
+            except BongtypeException as e:
+                for name in node.names:
+                    self.symbol_table.remove(name)
+                raise
             return TypeList([]), Return.NO
         elif isinstance(node, ast.Array):
             # Super complicated things can happen here:
@@ -316,9 +325,16 @@ class TypeChecker:
             # automatically. In the result, we just have a List of types. And here, we
             # just have to check that all those types are equal.
             # I'm fascinated how everything magically works automatically. Isn't that beautiful?
+            # TODO forward expect information
             types, turn = self.check(node.elements)
-            if len(types)==0:
-                raise BongtypeException("Empty arrays are not supported (yet?) because the type of the array can not be determined.")
+            # If we have an empty array, we do not try to magically infer its type
+            # but we return the expected_type (which must be known then) instead.
+            if len(types) == 0:
+                if expected_types == None:
+                    raise BongtypeException("An empty array is not supported here because its type is unknown.")
+                else:
+                    return expected_types
+            # Otherwise, all contained types should match
             for i, typ in enumerate(types):
                 if not typ.sametype(types[0]):
                     raise BongtypeException("All elements in an array must be of the same type. First element is '{}' but '{}' was found (element index {}).".format(types[0], typ, index))

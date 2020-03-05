@@ -1,4 +1,5 @@
 import typing
+from flatlist import FlatList
 
 # With the following BaseType, we can use
 # python's type annotations whenever we expect type information in bong.
@@ -71,44 +72,21 @@ class BaseType:
 		return "BaseType (please override the __str__ method for subtypes!)"
 
 # Meta-type for expression lists
-# TypeList is a flattened list so it can not contain a TypeList itself.
-# See: TypeList does not derive from BaseType so it can not contain itself.
-# Nice!
-class TypeList:
+# TypeList does not derive from BaseType so it can not contain itself. Nice!
+class TypeList(FlatList):
 	def __init__(self, contained_types : typing.List[BaseType]):
-		self.contained_types = contained_types
-	# Flattened append (no TypeList inside a TypeList)
-	def append(self, element): # element : typing.Union[BaseType, TypeList] -> impossible because TypeList not defined yet.
-		if isinstance(element, TypeList):
-			for typ in element.contained_types:
-				self.contained_types.append(typ)
-		else:
-			self.contained_types.append(element)
-	# The next two methods for index-access and length
-	def __len__(self):
-		return len(self.contained_types)
-	def __getitem__(self, index) -> BaseType:
-		return self.contained_types[index]
-	# The next two methods make this class iterable
-	def __iter__(self):
-		self.iterationCounter = -1
-		return self
-	def __next__(self):
-		self.iterationCounter += 1
-		if self.iterationCounter < len(self.contained_types):
-			return self.contained_types[self.iterationCounter]
-		raise StopIteration
+		super().__init__(contained_types)
 	def sametype(self, other):
 		if type(other)!=TypeList:
 			return False
-		if len(self.contained_types)!=len(other.contained_types):
+		if len(self)!=len(other):
 			return False
-		for a,b in zip(self.contained_types, other.contained_types):
+		for a,b in zip(self.elements, other.elements):
 			if not a.sametype(b):
 				return False
 		return True
 	def __str__(self):
-		return "TypeList [" + ", ".join(map(str,self.contained_types)) + "]"
+		return "TypeList [" + ", ".join(map(str,self.elements)) + "]"
 
 
 # No first-class type but required to mark functions in the symbol table
@@ -123,6 +101,7 @@ class Function(BaseType):
 		if len(self.return_types) > 0:
 			s += " : " + str(self.return_types)
 		return s
+# Even less a first-class type that the user can use
 import types # python types
 class BuiltinFunction(BaseType):
 	def __init__(self, check_func : types.FunctionType):
@@ -136,8 +115,8 @@ class BuiltinFunction(BaseType):
 
 
 # Pseudo type used by the parser to comply to typing constraints
-# TODO Currently unused because we still resolve types in the parser
-# as long as we do not support custom types
+# TODO Currently not passed out of the parser because we still resolve
+# types in the parser as long as we do not support custom types
 class UnknownType(BaseType):
 	def sametype(self, other):
 		if type(other)==UnknownType:
@@ -145,7 +124,7 @@ class UnknownType(BaseType):
 		return False
 	def __str__(self):
 		return "UnknownType"
-# Pseudo-type for let statements with automatic type resolution
+# Pseudo-type for let statements with automatic type resolution and empty arrays
 class AutoType(BaseType):
 	def sametype(self, other):
 		if type(other)==AutoType:
@@ -289,6 +268,31 @@ basic_types = {
 		"bool": Boolean,
 		"str": String,
 }
+
+# TODO Where and how does this class and the following function belong?
+# Parser needs BongtypeIdentifier but BongtypeIdentifier.get_bongtype
+# needs somehow access to self-defined types (not supported yet, 2020-03-05).
+class BongtypeIdentifier:
+	def __init__(self, typename : str, num_array_levels : int = 0):
+		self.typename = typename
+		self.num_array_levels = num_array_levels
+	def get_bongtype(self) -> BaseType:
+		if self.typename in basic_types:
+			return basic_types[self.typename]()
+		raise Exception("Unknown type '{}'".format(name))
+	def __str__(self):
+		#s = "BongtypeIdentifier ("
+		s = ""
+		s += "[]" * self.num_array_levels
+		s += self.typename
+		# s += ")"
+		return s
+
+def get_bongtypes(types : typing.List[BongtypeIdentifier]) -> TypeList:
+	l = TypeList([])
+	for typ in types:
+		l.append(typ.get_bongtype())
+	return l
 
 class BongtypeException(Exception):
 	def __init__(self, msg : str):

@@ -1,6 +1,7 @@
 import ast
 from environment import Environment
 import bong_builtins
+from flatlist import FlatList
 
 # For subprocesses
 import os
@@ -179,13 +180,7 @@ class Eval:
         elif isinstance(node, ast.IndexAccess):
             index = self.evaluate(node.rhs)
             lhs = self.evaluate(node.lhs)
-            if isinstance(lhs, str): # bong string
-                return lhs[index]
-            if isinstance(lhs, Array): # bong array
-                return lhs.elements[index]
-            if isinstance(lhs, list): # sys_argv
-                return lhs[index]
-            #return self.environment.get(node.lhs.name)[index]
+            return lhs[index]
         if isinstance(node, ast.FunctionCall):
             function = self.functions.get(node.name)
             if isinstance(function, ast.FunctionDefinition):
@@ -216,7 +211,7 @@ class Eval:
         elif isinstance(node, ast.Let):
             # First, evaluate all rhses (those are possibly encapsulated in an 
             # ExpressionList, so no need to iterate here
-            results = ensureList(self.evaluate(node.expr))
+            results = ensureValueList(self.evaluate(node.expr))
             # Then, assign results. This order of execution additionally prevents
             # the rhs of a let statement to use the variables declared on the
             # left side.
@@ -229,12 +224,12 @@ class Eval:
             elements = []
             for e in node.elements:
                 elements.append(self.evaluate(e))
-            return Array(elements)
+            return elements
         elif isinstance(node, ast.ExpressionList):
-            results = []
+            results = ValueList([])
             for exp in node.elements:
                 results.append(self.evaluate(exp))
-            if len(results)==1:
+            if len(results)==1: # TODO Maybe switch to always return ValueLists like with TypeLists in typechecker?
                 return results[0]
             return results
         else:
@@ -443,22 +438,16 @@ def isTruthy(value):
         return False
     return True
 
-def ensureList(value):
-    if not isinstance(value, list):
-        return [value]
-    return value
-
-class Array:
+class ValueList(FlatList):
     def __init__(self, elements):
-        self.elements = elements
+        super().__init__(elements)
     def __str__(self):
-        elements = []
-        for e in self.elements:
-            elements.append(str(e))
-        result = "["
-        result += ", ".join(elements)
-        result += "]"
-        return result
+        return ", ".join(map(str,self.elements))
+
+def ensureValueList(value):
+    if not isinstance(value, ValueList):
+        return ValueList([value])
+    return value
 
 class ReturnValue:
     def __init__(self, value=None):
