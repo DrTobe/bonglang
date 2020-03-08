@@ -277,9 +277,11 @@ class BongtypeIdentifier:
 		self.typename = typename
 		self.num_array_levels = num_array_levels
 	def get_bongtype(self) -> BaseType:
+		if self.num_array_levels > 0:
+			return Array(BongtypeIdentifier(self.typename, self.num_array_levels-1).get_bongtype())
 		if self.typename in basic_types:
 			return basic_types[self.typename]()
-		raise Exception("Unknown type '{}'".format(name))
+		raise Exception("Unknown type '{}'".format(self.typename))
 	def __str__(self):
 		#s = "BongtypeIdentifier ("
 		s = ""

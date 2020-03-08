@@ -118,7 +118,7 @@ class Parser:
             if not self.match(token.RPAREN):
                 raise ParseException("Expected ) to end the parameter list.")
             # Return types
-            return_types : typing.List[str] = []
+            return_types : typing.List[bongtypes.BongtypeIdentifier] = []
             if self.match(token.COLON):
                 self.check_eof("Return type list expected.")
                 return_types.append(self.parse_type())
@@ -224,15 +224,15 @@ class Parser:
         for name,typ in zip(variable_names,variable_types):
             if self.symbol_table.exists(name):
                 raise ParseException("Name '{}' already exists in symbol table. Let statement impossible.".format(name))
-            bongtype = typ.get_bongtype() if typ!=None else bongtypes.AutoType()
+            bongtype = typ.get_bongtype() if isinstance(typ,bongtypes.BongtypeIdentifier) else bongtypes.AutoType()
             self.symbol_table.register(name, bongtype) # TODO custom types
         return variable_names
     # TODO These functions are extremely similar to
     # parse_parameters() / parse_parameter() / parse_returntype().
     # Should we unify those functions?
-    def parse_let_variables(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[str]]]:
+    def parse_let_variables(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[bongtypes.BongtypeIdentifier]]]:
         variable_names : typing.List[str] = []
-        variable_types : typing.List[typing.Optional[str]] = []
+        variable_types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]] = []
         #?? self.check_eof("Parameter list expected")
         name, typ = self.parse_let_variable()
         variable_names.append(name)
@@ -242,13 +242,13 @@ class Parser:
             variable_names.append(name)
             variable_types.append(typ)
         return (variable_names, variable_types)
-    def parse_let_variable(self) -> typing.Tuple[str, typing.Optional[str]]:
+    def parse_let_variable(self) -> typing.Tuple[str, typing.Optional[bongtypes.BongtypeIdentifier]]:
         #??? self.check_eof("Another parameter expected")
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected identifier as variable name.")
         name = self.peek(-1).lexeme
         if self.match(token.COLON):
-            typ : typing.Optional[str] = self.parse_type()
+            typ : typing.Optional[bongtypes.BongtypeIdentifier] = self.parse_type()
         else:
             typ = None
         return (name, typ)

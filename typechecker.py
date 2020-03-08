@@ -29,15 +29,12 @@ class TypeChecker:
         return True # TODO is there any return type?
 
     # Determine the type of the ast node.
-    # expected_types is an optional TypeList that is required if an expression
-    # is ambiguous (currently only used for empty arrays, in the future maybe
-    # required for struct types).
     # This method returns the TypeList (0, 1 or N elements) that the node will
     # evaluate to and a return hint that tells us if the node contains a
     # return statement and if it is sure that this return will be invoked. This
     # information is required to check/guarantee the return type of function
     # definitions.
-    def check(self, node : ast.BaseNode, expected_types : typing.Optional[TypeList] = None) -> typing.Tuple[TypeList, Return]:
+    def check(self, node : ast.BaseNode) -> typing.Tuple[TypeList, Return]:
         if isinstance(node, ast.Block):
             self.push_symtable(node.symbol_table)
             try:
@@ -299,16 +296,23 @@ class TypeChecker:
         elif isinstance(node, ast.Print):
             return TypeList([]), Return.NO
         elif isinstance(node, ast.Let):
-            try:
+            try: # If anything goes wrong, remove name from symbol table
                 results, turn = self.check(node.expr)
                 if len(node.names) != len(results):
                     raise BongtypeException("Number of expressions on rhs of let statement does not match the number of variables.")
                 for name, result in zip(node.names,results):
                     sym = self.symbol_table[name]
-                    if sym.typ.sametype(bongtypes.AutoType()):
+                    #if sym.typ.sametype(bongtypes.AutoType()): # Depending on syntax definition, this condition is enough. But the other is stronger
+                    if not is_specific_type(sym.typ):
+                        if not is_specific_type(result):
+                            raise BongtypeException("Automatic type for variable '{}' but rhs is no definitive type either, '{}' found instead.".format(name, result))
                         sym.typ = result
-                    elif not sym.typ.sametype(result):
-                        raise BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
+                    #elif not sym.typ.sametype(result): # Former condition, without empty arrays
+                    else:
+                        try: # Just to change the exception message
+                            merge_types(sym.typ, result)
+                        except BongtypeException as e:
+                            raise BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
             except BongtypeException as e:
                 for name in node.names:
                     self.symbol_table.remove(name)
@@ -325,20 +329,12 @@ class TypeChecker:
             # automatically. In the result, we just have a List of types. And here, we
             # just have to check that all those types are equal.
             # I'm fascinated how everything magically works automatically. Isn't that beautiful?
-            # TODO forward expect information
             types, turn = self.check(node.elements)
-            # If we have an empty array, we do not try to magically infer its type
-            # but we return the expected_type (which must be known then) instead.
-            if len(types) == 0:
-                if expected_types == None:
-                    raise BongtypeException("An empty array is not supported here because its type is unknown.")
-                else:
-                    return expected_types
+            inner_type : bongtypes.BaseType = bongtypes.AutoType()
             # Otherwise, all contained types should match
             for i, typ in enumerate(types):
-                if not typ.sametype(types[0]):
-                    raise BongtypeException("All elements in an array must be of the same type. First element is '{}' but '{}' was found (element index {}).".format(types[0], typ, index))
-            return TypeList([bongtypes.Array(typ)]), Return.NO
+                inner_type = merge_types(inner_type, typ)
+            return TypeList([bongtypes.Array(inner_type)]), Return.NO
         elif isinstance(node, ast.ExpressionList):
             types = bongtypes.TypeList([])
             for exp in node:
@@ -354,3 +350,21 @@ class TypeChecker:
 
     def pop_symtable(self):
         self.symbol_table = self.symbol_table.parent
+
+def merge_types(x : bongtypes.BaseType, y : bongtypes.BaseType) -> bongtypes.BaseType:
+    if x.sametype(bongtypes.AutoType()):
+        return y
+    if y.sametype(bongtypes.AutoType()):
+        return x
+    if isinstance(x, bongtypes.Array) and isinstance(y, bongtypes.Array):
+        return bongtypes.Array(merge_types(x.contained_type, y.contained_type))
+    if not x.sametype(y):
+        raise BongtypeException("Types '{}' and '{}' are incompatible.".format(x, y))
+    return x
+
+def is_specific_type(x : bongtypes.BaseType) -> bool:
+    if isinstance(x, bongtypes.AutoType):
+        return False
+    if isinstance(x, bongtypes.Array):
+        return is_specific_type(x.contained_type)
+    return True
