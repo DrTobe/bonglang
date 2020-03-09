@@ -5,6 +5,7 @@ from bongtypes import TypeList, BongtypeException
 
 import typing
 from enum import Enum
+import sys # stderr
 
 # For each checked node, indicates if that node is/contains ...
 class Return(Enum):
@@ -16,7 +17,15 @@ class TypeChecker:
     def __init__(self):
         pass
 
-    def checkprogram(self, program : ast.Program):
+    def checkprogram(self, program : ast.Program) -> bool:
+        try:
+            self.checkprogram_uncaught(program)
+        except BongtypeException as e:
+            print("TypecheckError: {}".format(str(e.msg)), file=sys.stderr)
+            return False
+        return True
+
+    def checkprogram_uncaught(self, program : ast.Program):
         # DEBUG
         #print(program.symbol_table)
         #print(program)
