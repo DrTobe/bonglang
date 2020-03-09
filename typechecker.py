@@ -127,8 +127,10 @@ class TypeChecker:
                     if not (isinstance(var, ast.Variable) or isinstance(var, ast.IndexAccess)):
                         raise BongtypeException("Lhs of assignment must be a variable!")
                 lhs, turn = self.check(node.lhs)
-                if not lhs.sametype(rhs):
-                    raise BongtypeException("Variable and expression types in assignment do not match.")
+                match_types(lhs, rhs, 
+                        ("Variable and expression types in assignment do"
+                        f" not match. Lhs expects '{lhs}' but rhs evaluates"
+                        f" to '{rhs}'"))
                 return lhs, Return.NO
             # For BinOps, most bongtypes' operators are overloaded
             # Not overloaded: 'and' and 'or'
@@ -138,13 +140,16 @@ class TypeChecker:
             lhstyp = lhslist[0]
             rhstyp = rhslist[0]
             if op == "+":
+                # TODO "+" is a valid operator for arrays but we do not do
+                # the proper empty-array check with match_types() here. Should
+                # we do that?
                 return TypeList([lhstyp + rhstyp]), Return.NO
             if op == "-":
                 return TypeList([lhstyp - rhstyp]), Return.NO
             if op == "*":
                 return TypeList([lhstyp * rhstyp]), Return.NO
             if op == "/":
-                return TypeList([lhstyp // rhstyp]), Return.NO
+                return TypeList([lhstyp / rhstyp]), Return.NO
             if op == "%":
                 return TypeList([lhstyp % rhstyp]), Return.NO
             if op == "^":
@@ -271,14 +276,17 @@ class TypeChecker:
             try:
                 expect = func.return_types
                 actual, turn = self.check(node.body)
-                if not expect.sametype(actual):
-                    raise BongtypeException("Function return type does not match function declaration. Declared '{}' but returned '{}'.".format(expect, actual))
+                match_types(expect, actual, "Function return type does not"
+                    f" match function declaration. Declared '{expect}' but"
+                    f" returned '{actual}'.")
                 # Enforce that there is a return statement if we require it
                 if len(expect) > 0: # Return required
                     if turn != Return.YES: # Return not guaranteed
                         raise BongtypeException("Point of no return reached!")
-                        raise BongtypeException("Function declaration expects return type '{}' but"
-                            " a return statement that will definitely be invoked is missing.".format(expect))
+                        raise BongtypeException(
+                                "Function declaration expects return type"
+                                f" '{expect}' but a return statement that"
+                                " will definitely be invoked is missing.")
             except BongtypeException as e:
                 # In case of error, remove function from symbol table
                 self.symbol_table.remove(node.name)
@@ -297,8 +305,9 @@ class TypeChecker:
             if isinstance(func, bongtypes.BuiltinFunction):
                 return func.check(argtypes), Return.NO
             # Otherwise, it is a bong function that has well-defined parameter types
-            if not func.parameter_types.sametype(argtypes):
-                raise BongtypeException("Function '{}' expects parameters of type '{}' but '{}' were given.".format(node.name, func.parameter_types, argtypes))
+            match_types(func.parameter_types, argtypes, 
+                    (f"Function '{node.name}' expects parameters of type "
+                    f"'{func.parameter_types}' but '{argtypes}' were given."))
             # If everything goes fine (function can be called), it returns
             # whatever the function declaration says \o/
             return func.return_types, Return.NO
@@ -318,10 +327,7 @@ class TypeChecker:
                         sym.typ = result
                     #elif not sym.typ.sametype(result): # Former condition, without empty arrays
                     else:
-                        try: # Just to change the exception message
-                            merge_types(sym.typ, result)
-                        except BongtypeException as e:
-                            raise BongtypeException("Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
+                        merge_types(sym.typ, result, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
             except BongtypeException as e:
                 for name in node.names:
                     self.symbol_table.remove(name)
@@ -360,16 +366,36 @@ class TypeChecker:
     def pop_symtable(self):
         self.symbol_table = self.symbol_table.parent
 
-def merge_types(x : bongtypes.BaseType, y : bongtypes.BaseType) -> bongtypes.BaseType:
+# merge_types() has two usages:
+# 1. It is used in ast.Array to merge inner types that occur. For example,
+# if an array is given as ''[[], [[]], []]'', it's type must be at least 
+# Array(Array(Array(auto))). Merging [], [[]] and [] which are the types
+# seen by the topmost array is done by this function.
+# This merge fails whenever the two given types are incompatible, e.g. [[],1].
+# 2. Whenever an array type is required as a value (assignments, function
+# call, ...), this function can be used to match the expected type and the
+# array that was given (and could possibly empty or contain empty arrays). If
+# this fails, this automatically raises a BongtypeException. To distinguish
+# the different cases, an optional error message can be supplied.
+def merge_types(x : bongtypes.BaseType, y : bongtypes.BaseType, msg : typing.Optional[str] = None) -> bongtypes.BaseType:
     if x.sametype(bongtypes.AutoType()):
         return y
     if y.sametype(bongtypes.AutoType()):
         return x
     if isinstance(x, bongtypes.Array) and isinstance(y, bongtypes.Array):
-        return bongtypes.Array(merge_types(x.contained_type, y.contained_type))
+        return bongtypes.Array(merge_types(x.contained_type, y.contained_type, msg))
     if not x.sametype(y):
-        raise BongtypeException("Types '{}' and '{}' are incompatible.".format(x, y))
+        if isinstance(msg, str):
+            raise BongtypeException(msg)
+        else:
+            raise BongtypeException("Types '{}' and '{}' are incompatible.".format(x, y))
     return x
+
+def match_types(lhs : TypeList, rhs : TypeList, msg : str):
+    if len(lhs)!=len(rhs):
+        raise BongtypeException(msg)
+    for l,r in zip(lhs,rhs):
+        merge_types(l, r, msg)
 
 def is_specific_type(x : bongtypes.BaseType) -> bool:
     if isinstance(x, bongtypes.AutoType):

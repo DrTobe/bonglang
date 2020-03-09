@@ -162,18 +162,21 @@ def main():
             typecheck = TypeChecker()
             try:
                 program = p.compile()
-                # TODO WIP
-                typecheck.checkprogram(program)
-                evaluated = evaluator.evaluate(program)
-                code = ""
-                if evaluated != None:
-                    if config_print_results:
-                        print(str(evaluated))
-                # Debugging output
-                #print(str(symtable))
-                #print(str(evaluator.environment))
             except UnexpectedEof as e:
-                pass
+                # retain current input
+                continue
+            success = typecheck.checkprogram(program)
+            if not success:
+                code = "" # remove current input, it's invalid
+                continue
+            evaluated = evaluator.evaluate(program)
+            if evaluated != None:
+                if config_print_results:
+                    print(str(evaluated))
+            code = "" # remove current input if everything worked
+            # Debugging output
+            #print(str(symtable))
+            #print(str(evaluator.environment))
         # Catch <Ctrl-C> so that we can abort running programs but bong
         # itself is not stopped.
         except KeyboardInterrupt as e:
