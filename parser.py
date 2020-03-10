@@ -424,7 +424,7 @@ class Parser:
 
     def index_access(self):
         lhs = self.primary()
-        if self.match(token.LBRACKET):
+        while self.match(token.LBRACKET):
             self.check_eof("Missing expression for indexing.")
             rhs = self.expression()
             if not self.match(token.RBRACKET):
