@@ -250,7 +250,7 @@ class Eval:
                 # because they could be accessed during evaluation of the rhses
                 # but it is the end of a pipeline so the rhses are already evaled.
                 self.environment.register(name)
-                lhs.append(ast.Variable(name)) # ugly :(
+                lhs.append(ast.Variable(let.tokens, name)) # ugly :( 'let' is required because we can not instantiate an ast node without inner elements, but that's not the only ugly thing here :)
         elif not isinstance(lhs, list):
             lhs = [lhs]
         # First, evaluate all rhses, then assign to all lhses

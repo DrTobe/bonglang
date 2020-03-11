@@ -144,60 +144,66 @@ class TypeChecker:
             assert len(lhslist)==1 and len(rhslist)==1
             lhstyp = lhslist[0]
             rhstyp = rhslist[0]
-            if op == "+":
-                # TODO "+" is a valid operator for arrays but we do not do
-                # the proper empty-array check with match_types() here. Should
-                # we do that?
-                return TypeList([lhstyp + rhstyp]), Return.NO
-            if op == "-":
-                return TypeList([lhstyp - rhstyp]), Return.NO
-            if op == "*":
-                return TypeList([lhstyp * rhstyp]), Return.NO
-            if op == "/":
-                return TypeList([lhstyp / rhstyp]), Return.NO
-            if op == "%":
-                return TypeList([lhstyp % rhstyp]), Return.NO
-            if op == "^":
-                return TypeList([lhstyp ** rhstyp]), Return.NO
-            if op == "&&":
-                if type(lhstyp)!=bongtypes.Boolean:
-                    raise TypecheckException("Logical 'and' expects boolean operands. Left operand is not boolean.", node.lhs[0])
-                if type(rhstyp)!=bongtypes.Boolean:
-                    raise TypecheckException("Logical 'and' expects boolean operands. Right operand is not boolean.", node.rhs[0])
-                return TypeList([bongtypes.Boolean()]), Return.NO
-            if op == "||":
-                if type(lhstyp)!=bongtypes.Boolean:
-                    raise TypecheckException("Logical 'or' expects boolean operands. Left operand not boolean.", node.lhs[0])
-                if type(rhstyp)!=bongtypes.Boolean:
-                    raise TypecheckException("Logical 'or' expects boolean operands. Right operand is not boolean.", node.rhs[0])
-                return TypeList([bongtypes.Boolean()]), Return.NO
-            if op == "==":
-                return TypeList([lhstyp.eq(rhstyp)]), Return.NO
-            if op == "!=":
-                return TypeList([lhstyp.ne(rhstyp)]), Return.NO
-            if op == "<":
-                return TypeList([lhstyp < rhstyp]), Return.NO
-            if op == ">":
-                return TypeList([lhstyp > rhstyp]), Return.NO
-            if op == "<=":
-                return TypeList([lhstyp <= rhstyp]), Return.NO
-            if op == ">=":
-                return TypeList([lhstyp >= rhstyp]), Return.NO
-            else:
-                raise Exception("unrecognised binary operator: " + str(node.op))
+            try: # Catch all BongtypeExceptions
+                if op == "+":
+                    # TODO "+" is a valid operator for arrays but we do not do
+                    # the proper empty-array check with match_types() here. Should
+                    # we do that?
+                    return TypeList([lhstyp + rhstyp]), Return.NO
+                if op == "-":
+                    return TypeList([lhstyp - rhstyp]), Return.NO
+                if op == "*":
+                    return TypeList([lhstyp * rhstyp]), Return.NO
+                if op == "/":
+                    return TypeList([lhstyp / rhstyp]), Return.NO
+                if op == "%":
+                    return TypeList([lhstyp % rhstyp]), Return.NO
+                if op == "^":
+                    return TypeList([lhstyp ** rhstyp]), Return.NO
+                if op == "&&":
+                    if type(lhstyp)!=bongtypes.Boolean:
+                        raise TypecheckException("Logical 'and' expects boolean operands. Left operand is not boolean.", node.lhs)
+                    if type(rhstyp)!=bongtypes.Boolean:
+                        raise TypecheckException("Logical 'and' expects boolean operands. Right operand is not boolean.", node.rhs)
+                    return TypeList([bongtypes.Boolean()]), Return.NO
+                if op == "||":
+                    if type(lhstyp)!=bongtypes.Boolean:
+                        raise TypecheckException("Logical 'or' expects boolean operands. Left operand not boolean.", node.lhs)
+                    if type(rhstyp)!=bongtypes.Boolean:
+                        raise TypecheckException("Logical 'or' expects boolean operands. Right operand is not boolean.", node.rhs)
+                    return TypeList([bongtypes.Boolean()]), Return.NO
+                if op == "==":
+                    return TypeList([lhstyp.eq(rhstyp)]), Return.NO
+                if op == "!=":
+                    return TypeList([lhstyp.ne(rhstyp)]), Return.NO
+                if op == "<":
+                    return TypeList([lhstyp < rhstyp]), Return.NO
+                if op == ">":
+                    return TypeList([lhstyp > rhstyp]), Return.NO
+                if op == "<=":
+                    return TypeList([lhstyp <= rhstyp]), Return.NO
+                if op == ">=":
+                    return TypeList([lhstyp >= rhstyp]), Return.NO
+                else:
+                    raise Exception("unrecognised binary operator: " + str(node.op))
+            except BongtypeException as e: # ... and transform to TypecheckExc
+                raise TypecheckException(e.msg, node)
         elif isinstance(node, ast.UnaryOp):
-            op = node.op
-            if op == "!":
-                rhs, turn = self.check(node.rhs)
-                if len(rhs)!=1 or type(rhs[0])!=bongtypes.Boolean:
-                    raise TypecheckException("Logical 'not' expects boolean operand.", node)
-                return TypeList([bongtypes.Boolean()]), Return.NO
-            if op == "-":
-                rhstype, turn = self.check(node.rhs)
-                if len(rhstype)!=1 or not (type(rhstype[0])==bongtypes.Integer or type(rhstype[0])==bongtypes.Float):
-                    raise TypecheckException("Negate expects number.", node)
-                return rhstype, Return.NO
-            raise Exception("unrecognised unary operator: " + str(node.op))
+            try: # Catch all BongtypeExceptions ...
+                op = node.op
+                if op == "!":
+                    rhs, turn = self.check(node.rhs)
+                    if len(rhs)!=1 or type(rhs[0])!=bongtypes.Boolean:
+                        raise TypecheckException("Logical 'not' expects boolean operand.", node)
+                    return TypeList([bongtypes.Boolean()]), Return.NO
+                if op == "-":
+                    rhstype, turn = self.check(node.rhs)
+                    if len(rhstype)!=1 or not (type(rhstype[0])==bongtypes.Integer or type(rhstype[0])==bongtypes.Float):
+                        raise TypecheckException("Negate expects number.", node)
+                    return rhstype, Return.NO
+                raise Exception("unrecognised unary operator: " + str(node.op))
+            except BongtypeException as e: # ... and transform to TypecheckExc
+                raise TypecheckException(e.msg, node)
         elif isinstance(node, ast.Integer):
             return TypeList([bongtypes.Integer()]), Return.NO
         elif isinstance(node, ast.Float):
@@ -223,7 +229,12 @@ class TypeChecker:
                 if not stdin.sametype(strtype):
                     raise TypecheckException("The input to a pipeline should evaluate to a string, {} was found instead.".format(stdin), node.elements[0])
             # Collect programcalls
-            programcalls.extend(node.elements[1:-1])
+            for elem in node.elements[1:-1]:
+                if not isinstance(elem, ast.SysCall):
+                    raise TypecheckException("The main part of a pipeline (all"
+                        " elements but the first and last) should only consist"
+                        f" of program calls, '{elem}' found instead.", elem)
+                programcalls.append(elem)
             # Check pipeline output types
             if isinstance(node.elements[-1], ast.SysCall):
                 programcalls.append(node.elements[-1])
@@ -410,7 +421,7 @@ def is_specific_type(x : bongtypes.BaseType) -> bool:
     return True
 
 class TypecheckException(Exception):
-    def __init__(self, msg : str, node : ast.BaseNode = None): # TODO node shouldn't be optional
+    def __init__(self, msg : str, node : ast.BaseNode):
         super().__init__(self, msg)
         self.msg = msg
         self.node = node

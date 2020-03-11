@@ -3,8 +3,7 @@
 import unittest
 from lexer import Lexer
 from parser import Parser
-from typechecker import TypeChecker
-from bongtypes import BongtypeException
+from typechecker import TypeChecker, TypecheckException
 import sys # for stderr printing
 
 class TestTypechecker(unittest.TestCase):
@@ -20,13 +19,20 @@ class TestTypechecker(unittest.TestCase):
         self.check("let a = [1]", True)
         self.check("let a = []", False)
 
-    def test_tmp_error_messages(self):
+    def test_error_messages(self):
+        # The following tests fail for various reasons, they are used to
+        # (manually) test the error reporting capabilities of the typechecker
         self.check("123 + 22.0 * 13.1", False)
         self.check("123 + 22.0 * 13", False)
+        self.check("let a : int = []", False)
+        self.check("let a : []int = [1.0]", False)
+        self.check("let a = 5; let b : float = a", False)
+        self.check("if 5 == \"asdf\" { }", False)
+        self.check("let a = 5; while a {}", False)
 
     def check(self, code, should_work):
         worked = typecheck(code)
-        self.assertEqual(worked, should_work, "Expected {} but got {}".format(worked, should_work))
+        self.assertEqual(should_work, worked, f"Expected {should_work} but got {worked}")
     
 def typecheck(code):
     l = Lexer(code, "test_evaluator.py input")
@@ -35,14 +41,12 @@ def typecheck(code):
     program = p.compile()
     try:
         tc.checkprogram_uncaught(program)
-    except BongtypeException as e:
+    except TypecheckException as e:
         # DEBUG: Print error messages
         if True:
-            if e.node != None:
-                loc = e.node.get_location()
-                posstring = f" in {loc[0]}, line {loc[1]} col {loc[2]} to line {loc[3]} col {loc[4]}"
-            else:
-                posstring = ""
-            print(f"\n\nTypecheckError{posstring}: {str(e.msg)}", file=sys.stderr)
+            print(f"\nTypecheckError when checking '{code}'", file=sys.stderr)
+            loc = e.node.get_location()
+            posstring = f" in {loc[0]}, line {loc[1]} col {loc[2]} to line {loc[3]} col {loc[4]}"
+            print(f"TypecheckError{posstring}: {str(e.msg)}\n", file=sys.stderr)
         return False
     return True
