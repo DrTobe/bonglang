@@ -433,17 +433,17 @@ class Parser:
         return lhs
 
     def primary(self):
-        if self.match(token.INT_VALUE):
-            return ast.Integer(int(self.peek(-1).lexeme))
-        if self.match(token.FLOAT_VALUE):
-            return ast.Float(float(self.peek(-1).lexeme))
-        if self.match(token.STRING):
-            return ast.String(str(self.peek(-1).lexeme))
-        if self.match(token.BOOL_VALUE):
-            return ast.Bool(True if self.peek(-1).lexeme=="true" else False)
-        if self.match(token.IDENTIFIER):
+        if tok := self.match(token.INT_VALUE):
+            return ast.Integer(int(tok.lexeme), tok)
+        if tok := self.match(token.FLOAT_VALUE):
+            return ast.Float(float(tok.lexeme), tok)
+        if tok := self.match(token.STRING):
+            return ast.String(str(tok.lexeme), tok)
+        if tok := self.match(token.BOOL_VALUE):
+            return ast.Bool(True if self.peek(-1).lexeme=="true" else False, tok)
+        if tok := self.match(token.IDENTIFIER):
             if self.match(token.LPAREN):
-                func_name = self.peek(-2).lexeme
+                func_name = tok.lexeme
                 arguments = self.parse_arguments()
                 if not self.match(token.RPAREN):
                     raise ParseException("Missing ) on function call.")
@@ -498,11 +498,11 @@ class Parser:
             elements.append(self.expression())
         return elements
 
-    def syscall_arguments(self, name):
+    def syscall_arguments(self, name) -> typing.List[str]:
         #valid = [token.OP_SUB, token.OP_DIV, token.OP_MULT, token.OP
         # TODO complete list of invalid tokens (which finish syscall args)
         invalid = [token.BONG, token.AMPERSAND, token.SEMICOLON, token.LBRACE, token.OP_EQ, token.RPAREN, token.EOF]
-        arguments = []
+        arguments : typing.List[str] = []
         arg = name
         while self.peek().type not in invalid:
             c = self.next()
@@ -543,6 +543,7 @@ class Parser:
         for i in range(Parser.AHEAD):
             self.next_tokens.append(self.lexer.get_token())
 
+    # Return current token
     def peek(self, steps=0):
         if steps >= 0:
             if steps >= Parser.AHEAD:
@@ -554,21 +555,31 @@ class Parser:
                 raise Exception("Looking back too far!")
             return self.past_tokens[steps]
 
+    # Return current token and advance to the next one
     def next(self):
         t = self.peek()
         self.past_tokens = [self.next_tokens[0]] + self.past_tokens[:-1]
         self.next_tokens = self.next_tokens[1:] + [self.lexer.get_token()]
         return t
 
+    # Match current token against the type (or list of types) given in compare.
+    # If found, return the current token and advance, otherwise return None.
     def match(self, compare):
         typ = self.peek().type
         if not isinstance(compare, list):
             compare = [compare]
         for c in compare:
             if c == typ:
-                self.next()
-                return True
+                return self.next()
         return False
+
+class TokenList:
+    def __init__(self):
+        self.tokens = []
+    def add(self, token : typing.Optional[token.Token]):
+        if isinstance(token, Token):
+            self.tokens.append(token)
+        return token
 
 # Custom exception for parser errors.
 # The (negative) offset is used to specify which token (in the past) describes
