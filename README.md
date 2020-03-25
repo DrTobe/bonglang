@@ -36,7 +36,7 @@ multiplication -> signed ( ( MULT | DIV | MOD ) signed )\*
 signed -> ( SUB | ADD )? exponentiation
 exponentiation -> index_access ( POW exponentiation )?
 index_access -> primary ( LBRACKET expression RBRACKET )\*
-primary -> INT_VALUE | FLOAT_VALUE | STRING | BOOL_VALUE | IDENTIFIER ( LPAREN arguments RPAREN )? | LBAREN expression RPAREN | LBRACKET commata_expression? RBRACKET | !!SYSCALL!!
+primary -> INT_VALUE | FLOAT_VALUE | STRING | BOOL_VALUE | IDENTIFIER ( LPAREN arguments RPAREN )? | LPAREN expression RPAREN | LBRACKET commata_expression? RBRACKET | !!SYSCALL!!
 arguments -> empty | commata_expressions
 commata_expressions -> expression ( COMMA expression ) \*
 empty -> ()
