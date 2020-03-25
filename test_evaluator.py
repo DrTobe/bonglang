@@ -5,6 +5,7 @@ from lexer import Lexer
 from parser import Parser
 from typechecker import TypeChecker
 from evaluator import Eval
+from test_typechecker import typecheck
 
 class TestEvaluator(unittest.TestCase):
     def test_function(self):
@@ -40,12 +41,9 @@ class TestEvaluator(unittest.TestCase):
     def test_pipe(self):
         # Since we are not able yet to redirect output, we just run pipelines
         # here that do not produce output
-        tests = [
-                "ls -la | grep foobar", 1,
-                "ls -la | grep test | grep py | grep lexer | /usr/bin/true", 0,
-                "ls | grep foobar", 1,
-                ]
-        test_eval_list(self, tests)
+        test_eval("ls -la | grep foobar", 1, self)
+        test_eval("ls -la | grep test | grep py | grep lexer | /usr/bin/true", 0, self)
+        test_eval("ls | grep foobar", 1, self)
 
     def test_advanced_pipe(self):
         # Since we are not able yet to redirect output, we just run pipelines
@@ -89,23 +87,20 @@ class TestEvaluator(unittest.TestCase):
     """
 
     def test_print_arith(self):
-        tests = [
-                "print 2 + 4 - 2", 4,
-                "print 4^2", 16,
-                "print 2^2 + 2^3", 12,
-                "print 2*3 - 12", -6,
-                "print 12 - 2^3" , 4,
-                "print (1+2)*3", 9,
-                "print 1 +2 *3", 7,
-                "print (1+2)^(1+2)", 27,
-                "print 27%5", 2,
-                "print (27%5)^2", 4,
-                ]
-        for i in range(0, len(tests), 2):
-            statement = tests[i]
-            expected = tests[i+1]
-            test_eval(statement, None, self)
-            self.assertEqual(self.result, expected, "Expected to print {} but got {}".format(expected, self.result))
+        self.single_print_test("print 2 + 4 - 2", 4)
+        self.single_print_test("print 4^2", 16)
+        self.single_print_test("print 2^2 + 2^3", 12)
+        self.single_print_test("print 2*3 - 12", -6)
+        self.single_print_test("print 12 - 2^3" , 4)
+        self.single_print_test("print (1+2)*3", 9)
+        self.single_print_test("print 1 +2 *3", 7)
+        self.single_print_test("print (1+2)^(1+2)", 27)
+        self.single_print_test("print 27%5", 2)
+        self.single_print_test("print (27%5)^2", 4)
+    def single_print_test(self, code, expected_result):
+        test_eval(code, None, self)
+        self.assertEqual(self.result, expected_result, "Expected to print {} but got {}".format(expected_result, self.result))
+
 
     def test_expression_statements(self):
         test_eval("let a = 1337 a", 1337, self)
@@ -138,13 +133,13 @@ class TestEvaluator(unittest.TestCase):
     def printer(self, string):
         self.result = string
 
-def test_eval_list(test_class, tests):
-    for i in range(0, len(tests), 2):
-        statement = tests[i]
-        expected = tests[i+1]
-        test_eval(statement, expected, test_class)
-
 def test_eval(code, expected, test_class):
+    # Here, we do typechecker-testing first, evaluator testing afterwards.
+    # This can be done because all code here should pass the typechecker.
+    # For testing that the typechecker catches invalid code, we have
+    # an additional test_typechecker.py
+    checked = typecheck(code)
+    test_class.assertTrue(checked, "Expected typechecker to succeed.")
     evaluated = evaluate(code, test_class.printer)
     test_class.assertEqual(evaluated, expected, "Expected {} but got {}".format(expected, evaluated))
     

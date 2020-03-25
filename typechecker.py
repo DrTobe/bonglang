@@ -328,6 +328,7 @@ class TypeChecker:
             # whatever the function declaration says \o/
             return func.return_types, Return.NO
         elif isinstance(node, ast.Print):
+            self.check(node.expr) # We can print anything but don't care
             return TypeList([]), Return.NO
         elif isinstance(node, ast.Let):
             try: # If anything goes wrong, remove name from symbol table
