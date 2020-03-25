@@ -5,6 +5,7 @@ Programming language that makes heavy use of pipes/bongs.
 Currently, there are only tests for the lexer. To run them, type: `python -m unittest test_lexer.py`
 
 ## grammar
+```
 program -> top_level_stmt
 top_level_stmt -> import | func_definition | stmt
 import -> IMPORT STRING AS IDENTIFIER SEMICOLON?
@@ -39,3 +40,4 @@ primary -> INT_VALUE | FLOAT_VALUE | STRING | BOOL_VALUE | IDENTIFIER ( LPAREN a
 arguments -> empty | commata_expressions
 commata_expressions -> expression ( COMMA expression ) \*
 empty -> ()
+```
