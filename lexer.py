@@ -8,7 +8,7 @@ class Lexer:
         self.last_token = None
         self.had_whitespace = False
         # Fields for reporting (error) positions
-        # For line and col we use an ever-growing list that let's us look
+        # For line and col we use an ever-growing list that lets us look
         # back in time
         self.filepath = filepath
         self.line = [1]
