@@ -64,6 +64,13 @@ class BinOp(BaseNode):
     def __str__(self):
         return "("+str(self.lhs)+self.op+str(self.rhs)+")"
 
+class AssignOp(BaseNode):
+    def __init__(self, lhs: BaseNode, rhs: BaseNode):
+        self.lhs = lhs
+        self.rhs = rhs
+    def __str__(self):
+        return "("+str(self.lhs)+"="+str(self.rhs)+")"
+
 class UnaryOp(BaseNode):
     def __init__(self, op, rhs):
         self.op = op
@@ -122,7 +129,7 @@ class ExpressionList(FlatList, BaseNode):
         return ", ".join(map(str,self.elements))
 
 class Let(BaseNode):
-    def __init__(self, names : typing.List[str], expr : typing.Union[ExpressionList, BinOp]): # rhs = Expressions or Assignment
+    def __init__(self, names : typing.List[str], expr : typing.Union[ExpressionList, AssignOp]): # rhs = Expressions or Assignment
         self.names = names
         self.expr = expr
     def __str__(self):

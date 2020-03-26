@@ -203,7 +203,7 @@ class Parser:
         try:
             if not self.match(token.ASSIGN):
                 raise ParseException("Empty let statements are not supported. Always assign a value!")
-            expr : typing.Union[ast.ExpressionList, ast.BinOp] = self.assignment()
+            expr : typing.Union[ast.ExpressionList, ast.AssignOp] = self.assignment()
         # TODO The following cleans up if parsing this let statement fails
         # but nevertheless, we can end up in errors when an evaluation error
         # or a typecheck error occurs. So, we need a different approach for
@@ -298,11 +298,11 @@ class Parser:
             self.symbol_table = self.symbol_table.parent
         return ast.Block(statements, block_symbol_table)
 
-    def assignment(self) -> typing.Union[ast.ExpressionList, ast.BinOp]:
-        lhs : typing.Union[ast.ExpressionList, ast.BinOp] = self.parse_commata_expressions()
+    def assignment(self) -> typing.Union[ast.ExpressionList, ast.AssignOp]:
+        lhs : typing.Union[ast.ExpressionList, ast.AssignOp] = self.parse_commata_expressions()
         if self.match(token.ASSIGN):
             rhs : ast.BaseNode = self.assignment()
-            lhs = ast.BinOp(lhs, "=", rhs)
+            lhs = ast.AssignOp(lhs, rhs)
         return lhs
 
     def expression(self) -> ast.BaseNode:

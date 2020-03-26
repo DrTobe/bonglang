@@ -69,7 +69,7 @@ class TypeChecker:
                                 # loop because subsequent statements will not
                                 # be executed. But no break has the benefit
                                 # that the following code is already typechecked.
-                                # When the return is removed, the typechecker 
+                                # When the return is removed, the typechecker
                                 # result will not change.
             finally:
                 self.pop_symtable()
@@ -113,25 +113,25 @@ class TypeChecker:
             if turn != Return.NO:
                 return types, Return.MAYBE
             return types, turn
+        if isinstance(node, ast.AssignOp):
+            # Multiple assignments are parsed/executed rhs-first
+            # so we only have to switch-case the rhs
+            if isinstance(node.rhs, ast.BinOp): # Multiple assignments at once
+                if node.rhs.op != "=":
+                    raise BongtypeException("Assignment expected!")
+            rhs, turn = self.check(node.rhs)
+            assert isinstance(node.lhs, ast.ExpressionList)
+            for var in node.lhs:
+                if not (isinstance(var, ast.Variable) or isinstance(var, ast.IndexAccess)):
+                    raise BongtypeException("Lhs of assignment must be a variable!")
+            lhs, turn = self.check(node.lhs)
+            match_types(lhs, rhs,
+                    ("Variable and expression types in assignment do"
+                    f" not match. Lhs expects '{lhs}' but rhs evaluates"
+                    f" to '{rhs}'"))
+            return lhs, Return.NO
         if isinstance(node, ast.BinOp):
             op = node.op
-            if op == "=":
-                # Multiple assignments are parsed/executed rhs-first
-                # so we only have to switch-case the rhs
-                if isinstance(node.rhs, ast.BinOp): # Multiple assignments at once
-                    if node.rhs.op != "=":
-                        raise BongtypeException("Assignment expected!")
-                rhs, turn = self.check(node.rhs)
-                assert isinstance(node.lhs, ast.ExpressionList)
-                for var in node.lhs:
-                    if not (isinstance(var, ast.Variable) or isinstance(var, ast.IndexAccess)):
-                        raise BongtypeException("Lhs of assignment must be a variable!")
-                lhs, turn = self.check(node.lhs)
-                match_types(lhs, rhs, 
-                        ("Variable and expression types in assignment do"
-                        f" not match. Lhs expects '{lhs}' but rhs evaluates"
-                        f" to '{rhs}'"))
-                return lhs, Return.NO
             # For BinOps, most bongtypes' operators are overloaded
             # Not overloaded: 'and' and 'or'
             lhslist, turn = self.check(node.lhs)
@@ -305,7 +305,7 @@ class TypeChecker:
             if isinstance(func, bongtypes.BuiltinFunction):
                 return func.check(argtypes), Return.NO
             # Otherwise, it is a bong function that has well-defined parameter types
-            match_types(func.parameter_types, argtypes, 
+            match_types(func.parameter_types, argtypes,
                     (f"Function '{node.name}' expects parameters of type "
                     f"'{func.parameter_types}' but '{argtypes}' were given."))
             # If everything goes fine (function can be called), it returns
@@ -368,7 +368,7 @@ class TypeChecker:
 
 # merge_types() has two usages:
 # 1. It is used in ast.Array to merge inner types that occur. For example,
-# if an array is given as ''[[], [[]], []]'', it's type must be at least 
+# if an array is given as ''[[], [[]], []]'', it's type must be at least
 # Array(Array(Array(auto))). Merging [], [[]] and [] which are the types
 # seen by the topmost array is done by this function.
 # This merge fails whenever the two given types are incompatible, e.g. [[],1].

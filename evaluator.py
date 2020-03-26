@@ -80,10 +80,10 @@ class Eval:
                 if isinstance(ret, ReturnValue):
                     break
             return ret
+        if isinstance(node, ast.AssignOp):
+            return self.assign(node.lhs, node.rhs)
         if isinstance(node, ast.BinOp):
             op = node.op
-            if op == "=":
-                return self.assign(node.lhs, node.rhs)
             lhs = self.evaluate(node.lhs)
             rhs = self.evaluate(node.rhs)
             if op == "+":
@@ -209,7 +209,7 @@ class Eval:
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
-            # First, evaluate all rhses (those are possibly encapsulated in an 
+            # First, evaluate all rhses (those are possibly encapsulated in an
             # ExpressionList, so no need to iterate here
             results = ensureValueList(self.evaluate(node.expr))
             # Then, assign results. This order of execution additionally prevents
@@ -465,4 +465,3 @@ class ReturnValue:
             result += " "
             result += str(self.value)
         return result
-
