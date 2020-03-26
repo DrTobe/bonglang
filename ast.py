@@ -9,9 +9,12 @@ import itertools # chain
 import sys
 
 # A "location" of tokens/nodes is defined as
-# tuple: filename, line from, col from, line to, col to.
+# tuple: filename, line from, col from, line to, col to, valid-location.
 # values are inclusive (col from == col to for a one-char token/node)
-Location = typing.Tuple[str, int, int, int, int]
+# If valid-location is false, filename is 'unknown location' and all
+# other values are set to 0. So if you are lazy, just print out a location,
+# the user will understand.
+Location = typing.Tuple[str, int, int, int, int, bool]
 
 class BaseNode:
     def __init__(self, tokens : typing.List[token.Token], inner_nodes): # inner_nodes : List[BaseNode]
@@ -21,15 +24,12 @@ class BaseNode:
         assert isinstance(inner_nodes, list)
         if len(inner_nodes):
             assert isinstance(inner_nodes[0], BaseNode)
-        if len(tokens) + len(inner_nodes) == 0:
-            raise Exception("An ast node needs at least one inner item"
-                    " (token or other ast nodes) so that a location of this"
-                    " ast node can be determined.")
         self.tokens = tokens
         self.inner_nodes = inner_nodes
 
     def get_location(self) -> Location:
-        return functools.reduce(location_minmax, itertools.chain(map(tok2loc, self.tokens), map(nod2loc, self.inner_nodes)))
+        locations = itertools.chain(map(tok2loc, self.tokens), map(nod2loc, self.inner_nodes))
+        return functools.reduce(location_minmax, locations, ("Unknown Location!", 0, 0, 0, 0, False))
 
 def tok2loc(tok : Token) -> Location:
     """
@@ -38,10 +38,12 @@ def tok2loc(tok : Token) -> Location:
         self.col = col
         self.length = length
     """
-    return (tok.filepath, tok.line, tok.col, tok.line, tok.col+tok.length-1)
+    return (tok.filepath, tok.line, tok.col, tok.line, tok.col+tok.length-1, True)
 def nod2loc(node : BaseNode) -> Location:
     return node.get_location()
 def location_minmax(lhs : Location, rhs : Location) ->  Location:
+    if lhs[5] != rhs[5]: # If only one valid location ...
+        return lhs if lhs[5] else rhs # ... return the valid one
     if lhs[0] != rhs[0]:
         print("Filenames of tokens / ast-nodes do not match! Using filename of leftmost item.", file=sys.stderr)
     if lhs[1] < rhs[1]:
@@ -56,7 +58,7 @@ def location_minmax(lhs : Location, rhs : Location) ->  Location:
         maxline, maxcol = rhs[3], rhs[4]
     else:
         maxline, maxcol = lhs[3], max(lhs[4], rhs[4])
-    return (lhs[0], minline, mincol, maxline, maxcol)
+    return (lhs[0], minline, mincol, maxline, maxcol, True)
 
 class Program(BaseNode):
     def __init__(self, statements : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):

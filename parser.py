@@ -453,6 +453,19 @@ class Parser:
         if tok := self.match(token.BOOL_VALUE):
             return ast.Bool([tok], True if self.peek(-1).lexeme=="true" else False)
         toks = TokenList()
+        if toks.add(self.match(token.LPAREN)):
+            exp = self.expression()
+            if not toks.add(self.match(token.RPAREN)):
+                raise ParseException("Missing closing parenthesis ).")
+            exp.tokens.extend(toks)
+            return exp
+        if toks.add(self.match(token.LBRACKET)):
+            if toks.add(self.match(token.RBRACKET)):
+                return ast.Array(toks, ast.ExpressionList([], []))
+            elements = self.parse_commata_expressions()
+            if not toks.add(self.match(token.RBRACKET)):
+                raise ParseException("Expected ].")
+            return ast.Array(toks, elements)
         if tok := self.match(token.IDENTIFIER):
             toks.add(tok)
             if toks.add(self.match(token.LPAREN)):
@@ -465,6 +478,9 @@ class Parser:
                 return ast.Variable(toks, self.peek(-1).lexeme)
             name = self.peek(-1).lexeme
             args = self.syscall_arguments(name)
+            # Add the last token we have used until now so that
+            # the ast node's location (especially length) is right
+            toks.add(self.peek(-1))
             return ast.SysCall(toks, args)
         # Special case: Syscall with './foo'
         if self.peek(0).type==token.DOT and self.peek(1).type==token.OP_DIV:
@@ -474,9 +490,7 @@ class Parser:
             # syscall_arguments("") instead.
             dot = self.next()
             args = self.syscall_arguments(".")
-            # Add the last token we have used until now so that
-            # the ast node's location (especially length) is right
-            toks.add(self.peek(-1))
+            toks.add(self.peek(-1)) # see above
             return ast.SysCall(toks, args)
         # Special case: Syscall with '../foo'
         if self.peek(0).type==token.DOT and self.peek(1).type==token.DOT and self.peek(2).type==token.OP_DIV:
@@ -490,23 +504,7 @@ class Parser:
             args = self.syscall_arguments("/")
             toks.add(self.peek(-1)) # see above
             return ast.SysCall(toks, args)
-        if toks.add(self.match(token.LPAREN)):
-            exp = self.expression()
-            if not toks.add(self.match(token.RPAREN)):
-                raise ParseException("Missing closing parenthesis ).")
-            exp.tokens.extend(toks)
-            return exp
-        if toks.add(self.match(token.LBRACKET)):
-            if toks.add(self.match(token.RBRACKET)):
-                # Little bit hacky here: We add the token list to the array
-                # as well as the expression list to not have ast nodes without
-                # inner elements
-                return ast.Array(toks, ast.ExpressionList(toks, []))
-            elements = self.parse_commata_expressions()
-            if not toks.add(self.match(token.RBRACKET)):
-                raise ParseException("Expected ].")
-            return ast.Array(toks, elements)
-        raise ParseException("Integer or () expected.")
+        raise ParseException("Value, program call, '()' or array expected.")
 
     def parse_arguments(self) -> ast.ExpressionList:
         if self.peek().type == token.RPAREN:

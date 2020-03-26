@@ -37,10 +37,12 @@ class TypeChecker:
         self.symbol_table = program.symbol_table
         for stmt in program.statements:
             res, turn = self.check(stmt)
-            if turn:
-                # TODO check that expression evaluates to INT
-                pass
-        return True # TODO is there any return type?
+            # If there is a possible return value,
+            if turn != Return.NO:
+                # ensure it is an int
+                expect = bongtypes.TypeList([bongtypes.Integer()])
+                if not res.sametype(expect):
+                    raise TypecheckException("Return type of program does not evaluate to int.", stmt)
 
     # Determine the type of the ast node.
     # This method returns the TypeList (0, 1 or N elements) that the node will
@@ -264,6 +266,10 @@ class TypeChecker:
                             sym.typ = strtype
                         elif not sym.typ.sametype(strtype):
                             raise TypecheckException("The output of a pipeline can only be written to string variables, let with explicit type '{}' was found instead.".format(sym.typ), assignto)
+                else:
+                    raise TypecheckException("The output of a pipeline can only"
+                            f" be written to string variables, {assignto} found"
+                            " instead.", assignto)
             # Check that everything in between actually is a program call
             for pcall in programcalls:
                 if not isinstance(pcall, ast.SysCall):
@@ -319,7 +325,10 @@ class TypeChecker:
             argtypes, turn = self.check(node.args)
             # Check builtin functions
             if isinstance(func, bongtypes.BuiltinFunction):
-                return func.check(argtypes), Return.NO
+                try:
+                    return func.check(argtypes), Return.NO
+                except BongtypeException as e: # Convert to TypecheckException
+                    raise TypecheckException(e.msg, node)
             # Otherwise, it is a bong function that has well-defined parameter types
             match_types(func.parameter_types, argtypes, node,
                     (f"Function '{node.name}' expects parameters of type "

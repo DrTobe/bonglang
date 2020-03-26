@@ -1,5 +1,14 @@
 import bongtypes
 
+# TODO Currently, the argument checker function raise BongtypeExceptions
+# which are converted to TypecheckerExceptions in typechecker.py. This
+# approach does not allow to specify the error location more specifically
+# here because only TypecheckerExpcetion takes an ast.Node as a second
+# argument which is used to calculate an error location.
+#
+# The same problem holds true for BongtypeExceptions generated in
+# bongtypes.py.
+
 def builtin_func_len(args):
     return len(args[0])
 def check_len(argument_types : bongtypes.TypeList) -> bongtypes.TypeList:

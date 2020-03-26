@@ -17,14 +17,16 @@ class TestEvaluator(unittest.TestCase):
         test_eval("func faculty(n:int) : int { if n <= 1 { return 1 } else { return n * faculty(n-1) } return 0 } faculty(5)", 120, self)
 
     def test_return(self):
-        self.single_return_test("return\n", None)
+        self.single_return_test("return 0\n", None)
         self.single_return_test("return 1337", 1337)
         self.single_return_test("return 21 * 2", 42)
         self.single_return_test("return 21 * 2; 13.37", 42)
     def single_return_test(self, code, expected_value):
         try:
+            checked = typecheck(code) # see below test_eval()
+            self.assertTrue(checked, "Expected typechecker to succeed.")
             x = evaluate(code, self.printer)
-            self.assertEqual(True, False, "Expected 'return' to raise a SystemExit exception.")
+            self.assertTrue(False, "Expected 'return' to raise a SystemExit exception.")
         except SystemExit as e:
             if expected_value != None:
                 self.assertEqual(e.code, expected_value, "Expected return value {} but got {}".format(expected_value, e.code))
@@ -149,5 +151,6 @@ def evaluate(code, printer):
     tc= TypeChecker()
     e = Eval(printer)
     program = p.compile()
-    tc.checkprogram(program)
+    if not tc.checkprogram(program):
+        return "Typechecker failed!"
     return e.evaluate(program)
