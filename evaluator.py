@@ -20,24 +20,21 @@ class Eval:
         self.printfunc = printfunc
         self.environment = Environment()
         self.functions = Environment()
+        # Register all builtin-functions in the environment
+        for bfuncname, bfunc in bong_builtins.functions.items():
+            #if not self.functions.exists(bfuncname): # For re-using in shell mode
+            self.functions.reg_and_set(bfuncname, bfunc[0])
 
     def evaluate(self, node):
         if isinstance(node, ast.Program):
-            # Register all builtin-functions in the environment
-            for bfuncname, bfunc in bong_builtins.functions.items():
-                if not self.functions.exists(bfuncname): # For re-using in shell mode
-                    self.functions.reg_and_set(bfuncname, bfunc[0])
             # Register all functions in the environment before evaluating the
             # top-level-statements
             toplevel_statements = []
             for statement in node.statements:
-                if isinstance(statement, ast.FunctionDefinition):
+                if isinstance(statement, ast.StructDefinition):
+                    pass
+                elif isinstance(statement, ast.FunctionDefinition):
                     func = statement
-                    # TODO The following check should not be necessary anymore
-                    """
-                    if func.name in self.builtin_functions:
-                        raise(Exception("Cannot overwrite builtin "+func.name))
-                    """
                     self.functions.reg_and_set(func.name, func)
                 else:
                     toplevel_statements.append(statement)

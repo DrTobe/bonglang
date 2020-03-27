@@ -202,13 +202,20 @@ class ExpressionList(FlatList, BaseNode):
         return ", ".join(map(str,self.elements))
 
 class Let(BaseNode):
-    def __init__(self, tokens : typing.List[Token], names : typing.List[str], expr : typing.Union[ExpressionList, AssignOp]): # rhs = Expressions or Assignment
+    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]], expr : typing.Union[ExpressionList, AssignOp]): # rhs = Expressions or Assignment
         super().__init__(tokens, [expr])
 
         self.names = names
+        self.types = types
         self.expr = expr
     def __str__(self):
-        names = ", ".join(self.names)
+        names = []
+        for name, typ in zip(self.names, self.types):
+            if typ == None:
+                names.append(name)
+            else:
+                names.append(name + f" : {typ}")
+        names = ", ".join(names)
         return "let " + names + " = " + str(self.expr)
 
 class IfElseStatement(BaseNode):
@@ -247,11 +254,18 @@ class Pipeline(BaseNode):
         return pipeline
 
 class PipelineLet(BaseNode):
-    def __init__(self, tokens : typing.List[Token], names):
+    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]]):
         super().__init__(tokens, [])
         self.names = names
+        self.types = types
     def __str__(self):
-        names = ", ".join(self.names)
+        names = []
+        for name, typ in zip(self.names, self.types):
+            if typ == None:
+                names.append(name)
+            else:
+                names.append(name + f" : {typ}")
+        names = ", ".join(names)
         return "let " + names
 
 class SysCall(BaseNode):
@@ -280,6 +294,21 @@ class FunctionDefinition(BaseNode):
         if len(self.return_types) > 0:
             result += ": " + ", ".join(map(str,self.return_types)) + " "
         result += str(self.body)
+        return result
+
+class StructDefinition(BaseNode):
+    def __init__(self, tokens : typing.List[Token], name : str, field_names : typing.List[str], field_types : typing.List[bongtypes.BongtypeIdentifier]):
+        super().__init__(tokens, [])
+        self.name = name
+        self.field_names = field_names
+        self.field_types = field_types
+    def __str__(self):
+        fields = []
+        for name, typ in zip(self.field_names, self.field_types):
+            fields.append(name + " : " + str(typ))
+        result = "struct " + self.name + " {\n"
+        result += ",\n".join(fields)
+        result += "\n}"
         return result
 
 class FunctionCall(BaseNode):

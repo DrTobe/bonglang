@@ -30,12 +30,57 @@ class TypeChecker:
             return False
         return True
 
+    # The typechecker has to assign types in the symbol table for
+    # - function definitions (parameter types, return types)
+    # - struct definitions
+    # - let statements
+    # Since assigning types for let statements requires a full
+    # ast pass, we do all type assignments in the typechecker.
+    # Like this, it is not split on several components.
+    #
+    # Anyways, resolving custom types has to be done first so that
+    # types are available for subsequent steps.
+    # Next, function interfaces can/must be resolved so that their
+    # type requirements are available for function calls.
+    # Finally, everything else can be checked (function bodies
+    # can only be checked here, not earlier).
+    # This pattern resembles how the evaluator handles
+    # FunctionDefinitions and all other statements differently.
+    #
+    # If we want to be insane, we could do all of this in one
+    # single pass: Collect all type- and function-definitions first,
+    # then resolve types and function interfaces as needed (check
+    # the symbol-table if this has to be done yet).
+    # Anyways, it can safely be assumed that the split approach
+    # is more maintainable, debuggable, understandable.
+    # If you want to try out the insane approach, just insert
+    # resolve_type() and resolve_function_interface() at the
+    # appropriate places when check()ing the ast.
     def checkprogram_uncaught(self, program : ast.Program):
         # DEBUG
         #print(program.symbol_table)
         #print(program)
         self.symbol_table = program.symbol_table
-        for stmt in program.statements:
+        # First, separate struct- and function-definitions and other stuff
+        self.struct_definitions : typing.Dict[str, ast.StructDefinition] = {}
+        self.func_definitions : typing.Dict[str, ast.FunctionDefinition] = {}
+        toplevel_statements : typing.List[ast.BaseNode] = []
+        for statement in program.statements:
+            if isinstance(statement, ast.StructDefinition):
+                self.struct_definitions[statement.name] = statement
+            elif isinstance(statement, ast.FunctionDefinition):
+                self.func_definitions[statement.name] = statement
+                toplevel_statements.append(statement) # function bodies have to be typechecked, too
+            else:
+                toplevel_statements.append(statement)
+        # Resolve types first
+        for typename, struct_def in self.struct_definitions.items():
+            self.resolve_type(bongtypes.BongtypeIdentifier(typename, 0), struct_def)
+        # Resolve function interfaces
+        for funcname in self.func_definitions:
+            self.resolve_function_interface(self.func_definitions[funcname])
+        # Typecheck the rest (also assigning variable types)
+        for stmt in toplevel_statements:
             res, turn = self.check(stmt)
             # If there is a possible return value,
             if turn != Return.NO:
@@ -43,6 +88,42 @@ class TypeChecker:
                 expect = bongtypes.TypeList([bongtypes.Integer()])
                 if not res.sametype(expect):
                     raise TypecheckException("Return type of program does not evaluate to int.", stmt)
+
+    # TODO Prevent recursion
+    def resolve_type(self, identifier : bongtypes.BongtypeIdentifier, node : ast.BaseNode) -> bongtypes.BaseType:
+        # Arrays are resolved recursively
+        if identifier.num_array_levels > 0:
+            return bongtypes.Array(self.resolve_type(bongtypes.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), node))
+        # Already known types can be returned
+        if not self.symbol_table[identifier.typename].typ.sametype(bongtypes.UnknownType()):
+            return self.symbol_table[identifier.typename].typ
+        # Everything else (structs) will be determined by determining the inner types
+        if not identifier.typename in self.struct_definitions:
+            # It can crash whenever an inner type, a type hint in a function
+            # interface or a type hint in a let statement uses a typename
+            # that is not defined.
+            raise TypecheckException(f"Type {identifier.typename} can not be"
+                    " resolved.", node)
+        # If it is defined, we determine the type by evaluating the
+        # struct definition
+        struct_def = self.struct_definitions[identifier.typename]
+        field_types = bongtypes.TypeList([])
+        for type_identifier in struct_def.field_types:
+            field_types.append(self.resolve_type(type_identifier, struct_def))
+        typ = bongtypes.Struct(identifier.typename, struct_def.field_names, field_types)
+        self.symbol_table[identifier.typename].typ = typ
+        return typ
+    
+    def resolve_function_interface(self, function : ast.FunctionDefinition):
+        parameters = bongtypes.TypeList([])
+        returns = bongtypes.TypeList([])
+        for param_name, param_type in zip(function.parameter_names, function.parameter_types):
+            typ = self.resolve_type(param_type, function)
+            parameters.append(typ)
+            function.symbol_table[param_name].typ = typ
+        for ret in function.return_types:
+            returns.append(self.resolve_type(ret, function))
+        self.symbol_table[function.name].typ = bongtypes.Function(parameters, returns)
 
     # Determine the type of the ast node.
     # This method returns the TypeList (0, 1 or N elements) that the node will
@@ -217,63 +298,76 @@ class TypeChecker:
         elif isinstance(node, ast.SysCall):
             return TypeList([bongtypes.Integer()]), Return.NO
         elif isinstance(node, ast.Pipeline):
-            # TODO Pipelines unchecked until now!
-            # Also see evaluator -> ast.Pipeline, it is very similar
-            if len(node.elements) < 2:
-                raise TypecheckException("Pipelines should have more than one element. This seems to be a parser bug.", node)
-            programcalls = []
-            strtype = TypeList([bongtypes.String()]) # used for checking stdin and stdout
-            # Check pipeline input types
-            if isinstance(node.elements[0], ast.SysCall):
-                programcalls.append(node.elements[0])
-            else:
-                stdin, turn = self.check(node.elements[0]) # turn == NO
-                if not stdin.sametype(strtype):
-                    raise TypecheckException("The input to a pipeline should evaluate to a string, {} was found instead.".format(stdin), node.elements[0])
-            # Collect programcalls
-            for elem in node.elements[1:-1]:
-                if not isinstance(elem, ast.SysCall):
-                    raise TypecheckException("The main part of a pipeline (all"
-                        " elements but the first and last) should only consist"
-                        f" of program calls, '{elem}' found instead.", elem)
-                programcalls.append(elem)
-            # Check pipeline output types
-            if isinstance(node.elements[-1], ast.SysCall):
-                programcalls.append(node.elements[-1])
-            else:
-                assignto = node.elements[-1]
-                # a) Variable
-                # a2) Variables in ExpressionList
-                # b) IndexAccess (not supported in parser yet)
-                # c) PipelineLet
-                # For all three (currently two) cases, the assignee must evaluate to string
-                # TODO It seems to me that stronger typing would clear things here a bit
-                if isinstance(assignto, ast.Variable): # a)
-                    stdout, turn = self.check(assignto)
-                    if not stdout.sametype(strtype):
-                        raise TypecheckException("The output of a pipeline can only be written to a string variable, {} was found instead.".format(stdout), assignto)
-                elif isinstance(assignto, ast.ExpressionList): # a2)
-                    outNerr, turn = self.check(assignto)
-                    if not outNerr.sametype(TypeList([bongtypes.String(), bongtypes.String()])):
-                        raise TypecheckException("The output of a pipeline can only be written to two string variables, '{}' was found instead.".format(outNerr), assignto)
-                elif isinstance(assignto, ast.PipelineLet):
-                    names = assignto.names
-                    if len(names) > 2 or len(names)==0:
-                        raise TypecheckException("The output of a pipeline can only be written to one or two string variables, let with {} variables  was found instead.".format(len(names)), assignto)
-                    for name in names:
-                        sym = self.symbol_table[name]
-                        if sym.typ.sametype(bongtypes.AutoType()):
-                            sym.typ = strtype
-                        elif not sym.typ.sametype(strtype):
-                            raise TypecheckException("The output of a pipeline can only be written to string variables, let with explicit type '{}' was found instead.".format(sym.typ), assignto)
+            # Whenever a pipeline fails the checks, we have to remove
+            # all variables from all PipelineLets from the symbol tables
+            try:
+                # Also see evaluator -> ast.Pipeline, it is very similar
+                if len(node.elements) < 2:
+                    raise TypecheckException("Pipelines should have more than one element. This seems to be a parser bug.", node)
+                programcalls = []
+                strtype = TypeList([bongtypes.String()]) # used for checking stdin and stdout
+                # Check pipeline input types
+                if isinstance(node.elements[0], ast.SysCall):
+                    programcalls.append(node.elements[0])
                 else:
-                    raise TypecheckException("The output of a pipeline can only"
-                            f" be written to string variables, {assignto} found"
-                            " instead.", assignto)
-            # Check that everything in between actually is a program call
-            for pcall in programcalls:
-                if not isinstance(pcall, ast.SysCall):
-                    raise TypecheckException("Everything in the center of a pipeline must be a programmcall, '{}' was found instead.".format(pcall), pcall)
+                    stdin, turn = self.check(node.elements[0]) # turn == NO
+                    if not stdin.sametype(strtype):
+                        raise TypecheckException("The input to a pipeline should evaluate to a string, {} was found instead.".format(stdin), node.elements[0])
+                # Collect programcalls
+                for elem in node.elements[1:-1]:
+                    if not isinstance(elem, ast.SysCall):
+                        raise TypecheckException("The main part of a pipeline (all"
+                            " elements but the first and last) should only consist"
+                            f" of program calls, '{elem}' found instead.", elem)
+                    programcalls.append(elem)
+                # Check pipeline output types
+                if isinstance(node.elements[-1], ast.SysCall):
+                    programcalls.append(node.elements[-1])
+                else:
+                    assignto = node.elements[-1]
+                    # a) Variable
+                    # a2) Variables in ExpressionList
+                    # b) IndexAccess (not supported in parser yet)
+                    # c) PipelineLet
+                    # For all three (currently two) cases, the assignee must evaluate to string
+                    # TODO It seems to me that stronger typing would clear things here a bit
+                    if isinstance(assignto, ast.Variable): # a)
+                        stdout, turn = self.check(assignto)
+                        if not stdout.sametype(strtype):
+                            raise TypecheckException("The output of a pipeline can only be written to a string variable, {} was found instead.".format(stdout), assignto)
+                    elif isinstance(assignto, ast.ExpressionList): # a2)
+                        outNerr, turn = self.check(assignto)
+                        if not outNerr.sametype(TypeList([bongtypes.String(), bongtypes.String()])):
+                            raise TypecheckException("The output of a pipeline can only be written to two string variables, '{}' was found instead.".format(outNerr), assignto)
+                    elif isinstance(assignto, ast.PipelineLet):
+                        names = assignto.names
+                        if len(names) > 2 or len(names)==0:
+                            raise TypecheckException("The output of a pipeline can only be written to one or two string variables, let with {} variables  was found instead.".format(len(names)), assignto)
+                        for name, type_identifier in zip(assignto.names, assignto.types):
+                            if isinstance(type_identifier, bongtypes.BongtypeIdentifier):
+                                typ = self.resolve_type(type_identifier, assignto)
+                                if not typ.sametype(bongtypes.String()):
+                                    raise TypecheckException("The output of a pipeline"
+                                        " can only be written to string variables, let"
+                                        f" with explicit type '{typ}' was found instead.", assignto)
+                                self.symbol_table[name].typ = typ
+                            else:
+                                self.symbol_table[name].typ = bongtypes.String()
+                    else:
+                        raise TypecheckException("The output of a pipeline can only"
+                                f" be written to string variables, {assignto} found"
+                                " instead.", assignto)
+                # Check that everything in between actually is a program call
+                for pcall in programcalls:
+                    if not isinstance(pcall, ast.SysCall):
+                        raise TypecheckException("Everything in the center of a pipeline must be a programmcall, '{}' was found instead.".format(pcall), pcall)
+            except Exception as e:
+                # See above: We have to remove variables from the symbol table now
+                for elem in node.elements:
+                    if isinstance(elem, ast.PipelineLet):
+                        for name in elem.names:
+                            self.symbol_table.remove(name)
+                raise
             return TypeList([bongtypes.Integer()]), Return.NO
         elif isinstance(node, ast.Variable):
             return TypeList([self.symbol_table.get(node.name).typ]), Return.NO
@@ -344,16 +438,15 @@ class TypeChecker:
                 results, turn = self.check(node.expr)
                 if len(node.names) != len(results):
                     raise TypecheckException("Number of expressions on rhs of let statement does not match the number of variables.", node)
-                for name, result in zip(node.names,results):
-                    sym = self.symbol_table[name]
-                    #if sym.typ.sametype(bongtypes.AutoType()): # Depending on syntax definition, this condition is enough. But the other is stronger
-                    if not is_specific_type(sym.typ):
+                for name, type_identifier, result in zip(node.names, node.types, results):
+                    if isinstance(type_identifier, bongtypes.BongtypeIdentifier):
+                        typ = self.resolve_type(type_identifier, node)
+                        typ = merge_types(typ, result, node, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, typ, result))
+                        self.symbol_table[name].typ = typ
+                    else:
                         if not is_specific_type(result):
                             raise TypecheckException("Automatic type for variable '{}' but rhs is no definitive type either, '{}' found instead.".format(name, result), node)
-                        sym.typ = result
-                    #elif not sym.typ.sametype(result): # Former condition, without empty arrays
-                    else:
-                        merge_types(sym.typ, result, node, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, sym.typ, result))
+                        self.symbol_table[name].typ = result
             except TypecheckException as e:
                 for name in node.names:
                     self.symbol_table.remove(name)
@@ -379,8 +472,8 @@ class TypeChecker:
         elif isinstance(node, ast.ExpressionList):
             types = bongtypes.TypeList([])
             for exp in node:
-                typ, turn = self.check(exp)
-                types.append(typ) # TypeLists are automatically flattened
+                typlist, turn = self.check(exp)
+                types.append(typlist) # TypeLists are automatically flattened
             return types, Return.NO
         else:
             raise Exception("unknown ast node")

@@ -147,6 +147,8 @@ class Lexer:
                 return self.create_token(token.IMPORT, len(lex), lex)
             if lex == "as":
                 return self.create_token(token.AS, len(lex), lex)
+            if lex == "struct":
+                return self.create_token(token.STRUCT, len(lex), lex)
             return self.create_token(token.IDENTIFIER, len(lex), lex)
         if "\"" == c: # begin of a string
             lex = ""

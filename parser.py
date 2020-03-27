@@ -22,6 +22,9 @@ class Parser:
         for bfuncname, bfunc in bong_builtins.functions.items():
             if not self.symbol_table.exists(bfuncname): # For re-using symbol tables in shell mode
                 self.symbol_table.register(bfuncname, bongtypes.BuiltinFunction(bfunc[1]))
+        for btypename, btype in bongtypes.basic_types.items():
+            if not self.symbol_table.exists(btypename): # Re-using
+                self.symbol_table.register(btypename, btype())
 
     def compile(self) -> ast.Program:
         statements : typing.List[ast.BaseNode] = []
@@ -43,6 +46,8 @@ class Parser:
             return self.parse_import()
         if self.peek().type == token.FUNC:
             return self.parse_function_definition()
+        if self.peek().type == token.STRUCT:
+            return self.parse_struct_definition()
         return self.stmt()
 
     def stmt(self) -> ast.BaseNode:
@@ -110,7 +115,7 @@ class Parser:
             raise ParseException("Name '{}' already exists in symbol table. Function definition impossible.".format(name))
         # Register function name before parsing parameter names (no parameter name should have the function name!)
         self.symbol_table.register(name, bongtypes.UnknownType())
-        try: # Everything after registering the name has to be caught to remove the name from symtable
+        try: # Everything after registering the name has to be caught to remove the name from symtable in case of error
             # (
             if not toks.add(self.match(token.LPAREN)):
                 raise ParseException("Expected ( to start the parameter list.")
@@ -136,21 +141,42 @@ class Parser:
                 for param,typ in zip(parameter_names,parameter_types):
                     if self.symbol_table.exists(param):
                         raise ParseException("Argument name '{}' already exists in symbol table. Function definition impossible.".format(param))
-                    # TODO custom types
-                    self.symbol_table.register(param, typ.get_bongtype())
+                    self.symbol_table.register(param, bongtypes.UnknownType())
                 body = self.block_stmt()
             finally:
                 self.symbol_table = self.symbol_table.parent # pop
         except Exception as e:
-            self.symbol_table.remove(name) # Remove function name from symtable in case of error
+            # Remove function name from symtable in case of error
+            # The func_symbol_table is not accessible anymore then and will
+            # be garbage collected so we do not have to clean up that manually.
+            self.symbol_table.remove(name)
             raise
-        # Register function in symbol table
-        # TODO Currently, we do not have custom types yet. In the future,
-        # the parser will only write UnknownType into the symbol table
-        # and a later layer will resolve those types by passing the ast
-        self.symbol_table[name].typ = bongtypes.Function(bongtypes.get_bongtypes(parameter_types), bongtypes.get_bongtypes(return_types))
         return ast.FunctionDefinition(toks, name, parameter_names, parameter_types, return_types, body, func_symbol_table)
 
+    def parse_struct_definition(self) -> ast.StructDefinition:
+        toks = TokenList()
+        # STRUCT foo {bar : int, ...}
+        if not toks.add(self.match(token.STRUCT)):
+            raise Exception("Expected struct definition.")
+        # func FOO {bar : int, ...}
+        if not toks.add(self.match(token.IDENTIFIER)):
+            raise ParseException("Expected struct name.")
+        name = self.peek(-1).lexeme
+        if self.symbol_table.exists(name):
+            raise ParseException(f"Name '{name}' already exists in symbol table. Struct definition impossible.")
+        # {
+        if not toks.add(self.match(token.LBRACE)):
+            raise ParseException("Expected { to start the field list.")
+        # Fields
+        field_names, field_types = self.parse_parameters()
+        # }
+        if not toks.add(self.match(token.RBRACE)):
+            raise ParseException("Expected } to end the field list.")
+        # If everything went fine, register the struct name
+        self.symbol_table.register(name, bongtypes.UnknownType())
+        return ast.StructDefinition(toks, name, field_names, field_types)
+
+    # Used by parse_function_definition() and parse_struct_definition()
     def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[bongtypes.BongtypeIdentifier]]:
         parameter_names : typing.List[str] = []
         parameter_types : typing.List[bongtypes.BongtypeIdentifier] = []
@@ -205,41 +231,47 @@ class Parser:
     def let_stmt(self) -> ast.Let:
         toks = TokenList()
         toks.add(self.peek()) # Add 'let' token itself for correct begin
-        names : typing.List[str] = self.let_lhs()
+        var_names, var_types = self.let_lhs() # Writes variable names to symbol table
         try:
             if not toks.add(self.match(token.ASSIGN)):
                 raise ParseException("Empty let statements are not supported. Always assign a value!")
             expr : typing.Union[ast.ExpressionList, ast.AssignOp] = self.assignment()
-        # TODO The following cleans up if parsing this let statement fails
-        # but nevertheless, we can end up in errors when an evaluation error
-        # or a typecheck error occurs. So, we need a different approach for
-        # cleaning up the parser's internal state after subsequent errors.
         except Exception as e:
-            for name in names:
+            # Remove variable names from symtable in case of error
+            for name in var_names:
                 self.symbol_table.remove(name)
             raise
         toks.add(self.match(token.SEMICOLON))
-        return ast.Let(toks, names, expr)
+        return ast.Let(toks, var_names, var_types, expr)
     # splitted so that this part can be reused for pipelines
-    def let_lhs(self) -> typing.List[str]:
+    def let_lhs(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[bongtypes.BongtypeIdentifier]]]:
         if not self.match(token.LET):
             raise Exception("Expected let statement.")
         # Parse variable names and types
         variable_names, variable_types = self.parse_let_variables()
-        # Register names in symbol table
-        for name,typ in zip(variable_names,variable_types):
+        # Two error cases that look similar here:
+        # 1. One of the names already existed in symbol table
+        # 2. The same name is given twice in this let statement
+        # To not fail after having registered a name here, we have to make
+        # sure that the register() method never fails by checking both
+        # error cases first before registering any names.
+        # 1.
+        for name in variable_names:
             if self.symbol_table.exists(name):
                 raise ParseException("Name '{}' already exists in symbol table. Let statement impossible.".format(name))
-            bongtype = typ.get_bongtype() if isinstance(typ,bongtypes.BongtypeIdentifier) else bongtypes.AutoType()
-            self.symbol_table.register(name, bongtype) # TODO custom types
-        return variable_names
+        # 2.
+        if len(variable_names) != len(set(variable_names)):
+            raise ParseException("This let statement contains duplicate names!")
+        # Batch register w/o failing
+        for name in variable_names:
+            self.symbol_table.register(name, bongtypes.UnknownType())
+        return variable_names, variable_types
     # TODO These functions are extremely similar to
     # parse_parameters() / parse_parameter() / parse_returntype().
     # Should we unify those functions?
     def parse_let_variables(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[bongtypes.BongtypeIdentifier]]]:
         variable_names : typing.List[str] = []
         variable_types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]] = []
-        #?? self.check_eof("Parameter list expected")
         name, typ = self.parse_let_variable()
         variable_names.append(name)
         variable_types.append(typ)
@@ -249,7 +281,6 @@ class Parser:
             variable_types.append(typ)
         return (variable_names, variable_types)
     def parse_let_variable(self) -> typing.Tuple[str, typing.Optional[bongtypes.BongtypeIdentifier]]:
-        #??? self.check_eof("Another parameter expected")
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected identifier as variable name.")
         name = self.peek(-1).lexeme
@@ -373,8 +404,8 @@ class Parser:
         while toks.add(self.match(token.BONG)):
             if self.peek().type == token.LET:
                 toks.add(self.peek())
-                names = self.let_lhs()
-                elements.append(ast.PipelineLet(toks, names))
+                names, types = self.let_lhs()
+                elements.append(ast.PipelineLet(toks, names, types))
             elif (self.peek().type == token.IDENTIFIER and
                     self.peek(1).type == token.COMMA):
                 # Like this, we can not have more "complicated" variables

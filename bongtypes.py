@@ -28,7 +28,7 @@ class BaseType:
 	def __mod__(self, other):
 		return self.arith(other)
 	def arith(self, other):
-		raise BongtypeException("This operator is not defined for this Type.")
+		raise BongtypeException(f"This operator is not defined for this type ({type(self)}).")
 	def __lt__(self, other):
 		return self.comp(other)
 	def __le__(self, other):
@@ -50,7 +50,7 @@ class BaseType:
 	def __ge__(self, other):
 		return self.comp(other)
 	def comp(self, other):
-		raise BongtypeException("This operator is not defined for this Type.")
+		raise BongtypeException(f"This operator is not defined for this type ({type(self)}).")
 	def __lshift__(self, other):
 		raise Exception("No bitwise operators used in bong.")
 	def __rshift__(self, other):
@@ -113,6 +113,25 @@ class BuiltinFunction(BaseType):
 	def __str__(self):
 		return "BuiltinFunction (" + " ??? \o/ " + ")"
 
+class Struct(BaseType):
+	def __init__(self, name : str, field_names : typing.List[str], field_types : TypeList):
+		self.name = name
+		self.field_names = field_names
+		self.field_types = field_types
+	def sametype(self, other):
+		if not isinstance(other, Struct):
+			return False
+		if self.name != other.name:
+			return False
+		if self.field_names != other.field_names:
+			return False
+		return self.field_types.sametype(other.field_types)
+	def __str__(self):
+		names = []
+		for name, typ in zip(self.field_names, self.field_types):
+			names.append(name + f" : {typ}")
+		names = ", ".join(names)
+		return f"Struct {self.name} "+"{" + f"{names}" + "}"
 
 # Pseudo type used by the parser to comply to typing constraints
 # TODO Currently not passed out of the parser because we still resolve

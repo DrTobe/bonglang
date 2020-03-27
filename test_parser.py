@@ -79,6 +79,9 @@ class TestParser(unittest.TestCase):
         test_string(self, "print 1 + 2", "{\nprint (1+2);\n}"),
         test_string(self, "print 13 + 37 == 42", "{\nprint ((13+37)==42);\n}")
 
+    def test_struct(self):
+        test_string(self, "struct mytype { foo : int, bar : float }", "{\nstruct mytype {\nfoo : int,\nbar : float\n}\n}")
+
     def test_expression_statement(self):
         test_string(self, "1", "{\n1\n}")
         test_string(self, "-1", "{\n(-1)\n}")

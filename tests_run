@@ -1,5 +1,16 @@
 #!/usr/bin/bash
+echo Testing Lexer
 python -m unittest test_lexer.py
+echo "(lexer)"
+echo ==========
+echo Testing Parser
 python -m unittest test_parser.py
+echo "(parser)"
+echo ==========
+echo Testing Typechecker
 python -m unittest test_typechecker.py
+echo "(typechecker)"
+echo ==========
+echo Testing Evaluator
 python -m unittest test_evaluator.py
+echo "(evaluator)"
