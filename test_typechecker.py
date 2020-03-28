@@ -124,6 +124,11 @@ class TestTypechecker(unittest.TestCase):
         self.check("if 5 == \"asdf\" { }")
         self.check("let a = 5; while a {}")
 
+    def test_struct_definition(self):
+        self.check("struct T { x : unknown, y : float }") # inner type unknown
+        # TODO
+        #self.check("struct A { x : B }; struct B { y : A }") # recursive types
+
     def check(self, code):
         worked = typecheck(code)
         self.assertFalse(worked, "Expected typechecker to fail.")

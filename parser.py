@@ -27,18 +27,21 @@ class Parser:
                 self.symbol_table.register(btypename, btype())
 
     def compile(self) -> ast.Program:
-        statements : typing.List[ast.BaseNode] = []
         try:
-            while self.peek().type != token.EOF:
-                statements.append(self.top_level_stmt())
+            return self.compile_uncaught()
         except ParseException as e:
-            statements = [] # In case of syntax error, nothing should be executed
             t = self.peek(e.offset)
             if t.lexeme != None:
                 lexeme = t.lexeme
             else:
                 lexeme = t.type
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
+            return ast.Program([], self.symbol_table)
+    
+    def compile_uncaught(self) -> ast.Program:
+        statements : typing.List[ast.BaseNode] = []
+        while self.peek().type != token.EOF:
+            statements.append(self.top_level_stmt())
         return ast.Program(statements, self.symbol_table)
 
     def top_level_stmt(self) -> ast.BaseNode:
@@ -169,6 +172,10 @@ class Parser:
             raise ParseException("Expected { to start the field list.")
         # Fields
         field_names, field_types = self.parse_parameters()
+        if len(field_names) != len(set(field_names)):
+            raise ParseException(f"Struct {name} contains duplicate field names.")
+        if len(field_names) == 0:
+            raise ParseException(f"Struct {name} is empty.")
         # }
         if not toks.add(self.match(token.RBRACE)):
             raise ParseException("Expected } to end the field list.")

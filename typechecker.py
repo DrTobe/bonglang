@@ -94,18 +94,19 @@ class TypeChecker:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
             return bongtypes.Array(self.resolve_type(bongtypes.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), node))
-        # Already known types can be returned
-        if not self.symbol_table[identifier.typename].typ.sametype(bongtypes.UnknownType()):
-            return self.symbol_table[identifier.typename].typ
-        # Everything else (structs) will be determined by determining the inner types
-        if not identifier.typename in self.struct_definitions:
+        # Check missing type
+        # TODO Here, we also have to make sure that the item in the symbol table
+        # is either a builtin type or a type definition
+        if not identifier.typename in self.symbol_table.names:
             # It can crash whenever an inner type, a type hint in a function
             # interface or a type hint in a let statement uses a typename
             # that is not defined.
             raise TypecheckException(f"Type {identifier.typename} can not be"
                     " resolved.", node)
-        # If it is defined, we determine the type by evaluating the
-        # struct definition
+        # Already known types can be returned
+        if not self.symbol_table[identifier.typename].typ.sametype(bongtypes.UnknownType()):
+            return self.symbol_table[identifier.typename].typ
+        # Everything else (structs) will be determined by determining the inner types
         struct_def = self.struct_definitions[identifier.typename]
         field_types = bongtypes.TypeList([])
         for type_identifier in struct_def.field_types:

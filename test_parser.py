@@ -58,6 +58,7 @@ class TestParser(unittest.TestCase):
     def test_function_definition(self):
         test_string(self, "func someFunc() { let a = 1337 }", "{\nsomeFunc() {\nlet a = 1337\n}\n}")
         test_string(self, "func add(a : int, b : int) : int { return a + b }", "{\nadd(a : int, b : int) : int {\nreturn (a+b)\n}\n}")
+        self.fail("func calc(a:int, a:int) { }")
 
     def test_if(self):
         testData = [
@@ -78,9 +79,6 @@ class TestParser(unittest.TestCase):
     def test_print(self):
         test_string(self, "print 1 + 2", "{\nprint (1+2);\n}"),
         test_string(self, "print 13 + 37 == 42", "{\nprint ((13+37)==42);\n}")
-
-    def test_struct(self):
-        test_string(self, "struct mytype { foo : int, bar : float }", "{\nstruct mytype {\nfoo : int,\nbar : float\n}\n}")
 
     def test_expression_statement(self):
         test_string(self, "1", "{\n1\n}")
@@ -112,6 +110,25 @@ let b = 42
 let c = 31415
 (a=(b=(c=15)))
 }""")
+
+
+    def test_struct(self):
+        test_string(self, "struct mytype { foo : int, bar : float }", "{\nstruct mytype {\nfoo : int,\nbar : float\n}\n}")
+        self.fail("struct T { x : int, x : float }") # x two times
+        self.fail("struct T { x : int, x : int }") # x two times
+        self.fail("struct int { x : int, y : float }") # name already taken
+        self.fail("struct { } ") # name missing
+        self.fail("struct name;") # block missing
+        self.fail("struct T { : int };") # field name missing
+        self.fail("struct T { }") # fields missing
+        self.fail("struct T { x, y : int }") # field type missing
+        
+    def fail(self, code):
+        try:
+            createParser(code).compile_uncaught()
+        except parser.ParseException as e:
+            return
+        self.assertTrue(False, f"Expected parser to fail on '{code}'.")
 
 def test_strings(test_class, testData):
     for td in testData:

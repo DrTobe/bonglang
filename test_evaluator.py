@@ -132,6 +132,14 @@ class TestEvaluator(unittest.TestCase):
         test_eval("\"1, 2, 3\"[0]", "1", self)
         test_eval("let a,b = 1,0 a,b=b,a a", 0, self)
 
+    def test_struct_definition(self):
+        self.check("struct T { x : int, y : float }", None)
+        self.check("struct A { x : int } struct B { y : A}", None)
+        self.check("struct B { y : A } struct A { x : int }", None)
+
+    def check(self, code, expected):
+        test_eval(code, expected, self)
+
     def printer(self, string):
         self.result = string
 
