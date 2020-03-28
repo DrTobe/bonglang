@@ -112,7 +112,7 @@ let c = 31415
 }""")
 
 
-    def test_struct(self):
+    def test_struct_definition(self):
         test_string(self, "struct mytype { foo : int, bar : float }", "{\nstruct mytype {\nfoo : int,\nbar : float\n}\n}")
         self.fail("struct T { x : int, x : float }") # x two times
         self.fail("struct T { x : int, x : int }") # x two times
@@ -122,6 +122,11 @@ let c = 31415
         self.fail("struct T { : int };") # field name missing
         self.fail("struct T { }") # fields missing
         self.fail("struct T { x, y : int }") # field type missing
+
+    def test_struct_value(self):
+        test_string(self, "name { a = 1, b = 2 }", "name {\na = 1,\nb = 2\n}")
+        self.fail("name { }") # no field values
+        self.fail("name { a : 1 }") # using : instead of =
         
     def fail(self, code):
         try:

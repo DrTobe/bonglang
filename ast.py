@@ -325,6 +325,21 @@ class FunctionCall(BaseNode):
         result += ")"
         return result
 
+class StructValue(BaseNode):
+    def __init__(self, tokens : typing.List[Token], name : str, field_names : typing.List[str], field_values : typing.List[BaseNode]):
+        super().__init__(tokens, field_values)
+        self.name = name
+        self.field_names = field_names
+        self.field_values = field_values
+    def __str__(self):
+        result = self.name + " {\n"
+        fields = []
+        for name, value in zip(self.field_names, self.field_values):
+            fields.append(f"{name} = {value}")
+        result += ",\n".join(fields)
+        result += "\n}"
+        return result
+
 class Array(BaseNode):
     def __init__(self, tokens : typing.List[Token], elements : ExpressionList):
         super().__init__(tokens, [elements])

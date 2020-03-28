@@ -512,6 +512,12 @@ class Parser:
                 if not toks.add(self.match(token.RPAREN)):
                     raise ParseException("Missing ) on function call.")
                 return ast.FunctionCall(toks, func_name, arguments)
+            elif toks.add(self.match(token.LBRACE)):
+                struct_name = tok.lexeme
+                field_names, field_values = self.parse_struct_fields()
+                if not toks.add(self.match(token.RBRACE)):
+                    raise ParseException("Missing } on struct value.")
+                return ast.StructValue(toks, struct_name, field_names, field_values)
             if self.symbol_table.exists(self.peek(-1).lexeme):
                 return ast.Variable(toks, self.peek(-1).lexeme)
             name = self.peek(-1).lexeme
@@ -548,6 +554,26 @@ class Parser:
         if self.peek().type == token.RPAREN:
             return ast.ExpressionList([],[])
         return self.parse_commata_expressions()
+
+    def parse_struct_fields(self) -> typing.Tuple[typing.List[str], typing.List[ast.BaseNode]]:
+        names = []
+        values = []
+        name, value = self.parse_struct_field()
+        names.append(name)
+        values.append(value)
+        while self.match(token.COMMA):
+            name, value = self.parse_struct_field()
+            names.append(name)
+            values.append(value)
+        return names, values
+    def parse_struct_field(self) -> typing.Tuple[str, ast.BaseNode]:
+        if not self.match(token.IDENTIFIER):
+            raise ParseException("Struct value requires at least one field.")
+        name = self.peek(-1).lexeme
+        if not self.match(token.ASSIGN):
+            raise ParseException("'=' missing for assigning a value to struct field.")
+        value = self.expression()
+        return name, value
 
     def parse_commata_expressions(self) -> ast.ExpressionList:
         elements = ast.ExpressionList([], [])
