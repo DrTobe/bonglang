@@ -124,16 +124,17 @@ let c = 31415
         self.fail("struct T { x, y : int }") # field type missing
 
     def test_struct_value(self):
-        test_string(self, "name { a = 1, b = 2 }", "name {\na = 1,\nb = 2\n}")
-        self.fail("name { }") # no field values
-        self.fail("name { a : 1 }") # using : instead of =
+        test_string(self, "name { a : 1, b : 2 }", "name {\na := 1,\nb := 2\n}")
+        #self.fail("name { }") # no field values, does not fail because it is parsed as 'program call' + 'block'
+        #self.fail("name { a : 1 }") # using : instead of =
         
     def fail(self, code):
         try:
-            createParser(code).compile_uncaught()
+            res = createParser(code).compile_uncaught()
         except parser.ParseException as e:
             return
-        self.assertTrue(False, f"Expected parser to fail on '{code}'.")
+        self.assertTrue(False, f"Expected parser to fail on '{code}'. Instead,"
+            f" {res} was returned successfully.")
 
 def test_strings(test_class, testData):
     for td in testData:

@@ -504,6 +504,7 @@ class Parser:
             if not toks.add(self.match(token.RBRACKET)):
                 raise ParseException("Expected ].")
             return ast.Array(toks, elements)
+        # variable name, function call, struct value, ... program call fallback
         if tok := self.match(token.IDENTIFIER):
             toks.add(tok)
             if toks.add(self.match(token.LPAREN)):
@@ -512,7 +513,13 @@ class Parser:
                 if not toks.add(self.match(token.RPAREN)):
                     raise ParseException("Missing ) on function call.")
                 return ast.FunctionCall(toks, func_name, arguments)
-            elif toks.add(self.match(token.LBRACE)):
+            # For struct values, we have to check until 'T { field :' so that
+            # it can be distinguished from 'if t {'
+            elif (self.peek(0).type == token.LBRACE
+                    and self.peek(1).type == token.IDENTIFIER
+                    and self.peek(2).type == token.COLON):
+                if not toks.add(self.match(token.LBRACE)):
+                    raise Exception("Missing { for struct value.")
                 struct_name = tok.lexeme
                 field_names, field_values = self.parse_struct_fields()
                 if not toks.add(self.match(token.RBRACE)):
@@ -570,8 +577,8 @@ class Parser:
         if not self.match(token.IDENTIFIER):
             raise ParseException("Struct value requires at least one field.")
         name = self.peek(-1).lexeme
-        if not self.match(token.ASSIGN):
-            raise ParseException("'=' missing for assigning a value to struct field.")
+        if not self.match(token.COLON):
+            raise ParseException("':' missing for assigning a value to struct field.")
         value = self.expression()
         return name, value
 

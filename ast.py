@@ -335,7 +335,7 @@ class StructValue(BaseNode):
         result = self.name + " {\n"
         fields = []
         for name, value in zip(self.field_names, self.field_values):
-            fields.append(f"{name} = {value}")
+            fields.append(f"{name} := {value}")
         result += ",\n".join(fields)
         result += "\n}"
         return result
