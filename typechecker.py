@@ -172,7 +172,6 @@ class TypeChecker:
             cond, turn = self.check(node.cond)
             if len(cond)==0 or type(cond[0])!=bongtypes.Boolean:
                 raise TypecheckException("If statement requires boolean condition.", node.cond)
-            # TODO
             a, aturn = self.check(node.thn)
             if isinstance(node.els, ast.BaseNode):
                 b, bturn = self.check(node.els)
@@ -473,25 +472,23 @@ class TypeChecker:
         elif isinstance(node, ast.StructValue):
             if not self.symbol_table.exists(node.name):
                 raise TypecheckException(f"Struct '{node.name}' not found.", node)
-            strct = self.symbol_table[node.name].typ
-            if type(strct)!=bongtypes.Struct:
+            struct_type = self.symbol_table[node.name].typ
+            if type(struct_type)!=bongtypes.Struct:
                 raise TypecheckException(f"'{node.name}' is not a struct type.", node)
-            # TODO
-            argtypes, turn = self.check(node.args)
-            # Check builtin functions
-            if isinstance(func, bongtypes.BuiltinFunction):
-                try:
-                    return func.check(argtypes), Return.NO
-                except BongtypeException as e: # Convert to TypecheckException
-                    raise TypecheckException(e.msg, node)
-            # Otherwise, it is a bong function that has well-defined parameter types
-            match_types(func.parameter_types, argtypes, node,
-                    (f"Function '{node.name}' expects parameters of type "
-                    f"'{func.parameter_types}' but '{argtypes}' were given."))
-            # If everything goes fine (function can be called), it returns
-            # whatever the function declaration says \o/
-            return func.return_types, Return.NO
-
+            fields : typing.Dict[str, bongtypes.BaseType] = {}
+            for name, value in node.fields.items():
+                argtypes, turn = self.check(value)
+                if len(argtypes) != 1:
+                    raise TypecheckException("Expression does not evaluate"
+                            " to a single value.", value)
+                # Duplicates are caught in the parser, we can just assign here.
+                fields[name] = argtypes[0]
+            struct_val = bongtypes.Struct(node.name, fields)
+            if struct_type != struct_val:
+                # TODO We definitely need better error reporting here!
+                raise TypecheckException("Instantiated struct does not match"
+                        " the struct type definition", node)
+            return TypeList([struct_type]), Return.NO
         elif isinstance(node, ast.ExpressionList):
             types = bongtypes.TypeList([])
             for exp in node:
