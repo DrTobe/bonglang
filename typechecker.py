@@ -89,31 +89,37 @@ class TypeChecker:
                 if not res.sametype(expect):
                     raise TypecheckException("Return type of program does not evaluate to int.", stmt)
 
+    # Resolve a given BongtypeIdentifier to an actual type. For custom types,
+    # this method will not return the bongtypes.Typedef, but the value type instead,
+    # i.e. the Typedefs will be unpacked.
+    # It can crash whenever an inner type in a struct, a type hint in a function
+    # interface or a type hint in a let statement uses a typename that is not defined.
     # TODO Prevent recursion
     def resolve_type(self, identifier : bongtypes.BongtypeIdentifier, node : ast.BaseNode) -> bongtypes.BaseType:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
             return bongtypes.Array(self.resolve_type(bongtypes.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), node))
         # Check missing type
-        # TODO Here, we also have to make sure that the item in the symbol table
-        # is either a builtin type or a type definition
         if not identifier.typename in self.symbol_table.names:
-            # It can crash whenever an inner type, a type hint in a function
-            # interface or a type hint in a let statement uses a typename
-            # that is not defined.
             raise TypecheckException(f"Type {identifier.typename} can not be"
                     " resolved.", node)
         # Already known types can be returned
         if not self.symbol_table[identifier.typename].typ.sametype(bongtypes.UnknownType()):
-            return self.symbol_table[identifier.typename].typ
+            if not isinstance(self.symbol_table[identifier.typename].typ, bongtypes.Typedef):
+                raise TypecheckException(f"Type {identifier.typename} can not be"
+                        " resolved.", node)
+            return self.symbol_table[identifier.typename].typ.value_type # unpack
         # Everything else (structs) will be determined by determining the inner types
+        if not identifier.typename in self.struct_definitions:
+            raise TypecheckException(f"Type {identifier.typename} can not be"
+                    " resolved.", node)
         struct_def = self.struct_definitions[identifier.typename]
         fields : typing.Dict[str, bongtypes.BaseType] = {}
         for name, type_identifier in struct_def.fields.items():
             fields[name] = self.resolve_type(type_identifier, struct_def)
-        typ = bongtypes.Struct(identifier.typename, fields)
-        self.symbol_table[identifier.typename].typ = typ
-        return typ
+        value_type = bongtypes.Struct(identifier.typename, fields)
+        self.symbol_table[identifier.typename].typ = bongtypes.Typedef(value_type)
+        return value_type
     
     def resolve_function_interface(self, function : ast.FunctionDefinition):
         parameters = bongtypes.TypeList([])
@@ -473,7 +479,8 @@ class TypeChecker:
             if not self.symbol_table.exists(node.name):
                 raise TypecheckException(f"Struct '{node.name}' not found.", node)
             struct_type = self.symbol_table[node.name].typ
-            if type(struct_type)!=bongtypes.Struct:
+            if (type(struct_type)!=bongtypes.Typedef
+                    or type(struct_type.value_type)!=bongtypes.Struct):
                 raise TypecheckException(f"'{node.name}' is not a struct type.", node)
             fields : typing.Dict[str, bongtypes.BaseType] = {}
             for name, value in node.fields.items():
@@ -484,11 +491,11 @@ class TypeChecker:
                 # Duplicates are caught in the parser, we can just assign here.
                 fields[name] = argtypes[0]
             struct_val = bongtypes.Struct(node.name, fields)
-            if struct_type != struct_val:
+            if struct_type.value_type != struct_val:
                 # TODO We definitely need better error reporting here!
                 raise TypecheckException("Instantiated struct does not match"
                         " the struct type definition", node)
-            return TypeList([struct_type]), Return.NO
+            return TypeList([struct_type.value_type]), Return.NO
         elif isinstance(node, ast.ExpressionList):
             types = bongtypes.TypeList([])
             for exp in node:

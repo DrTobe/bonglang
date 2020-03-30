@@ -24,7 +24,7 @@ class Parser:
                 self.symbol_table.register(bfuncname, bongtypes.BuiltinFunction(bfunc[1]))
         for btypename, btype in bongtypes.basic_types.items():
             if not self.symbol_table.exists(btypename): # Re-using
-                self.symbol_table.register(btypename, btype())
+                self.symbol_table.register(btypename, bongtypes.Typedef(btype()))
 
     def compile(self) -> ast.Program:
         try:

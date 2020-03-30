@@ -88,6 +88,20 @@ class TypeList(FlatList):
 	def __str__(self):
 		return "TypeList [" + ", ".join(map(str,self.elements)) + "]"
 
+# Type that specifies types. For example, the identifiers 'int', 'str'
+# and 'float' will be of that type, or identifiers that are names of structs.
+# The 'value_type' field in this class will be of the same type as the values of
+# 'int', 'str', 'float' or the instances of the respective structs.
+# No first-class type because it can not be assigned to variables.
+# This class is required so that type-names and type-values are of different
+# types, e.g. 'int' and '5' should differ in type, i.e. 'int == 5' should fail!
+class Typedef(BaseType):
+	def __init__(self, typ : BaseType):
+		self.value_type = typ
+	def sametype(self, other):
+		return type(other)==Typedef and self.value_type.sametype(other.value_type)
+	def __str__(self):
+		return f"Typedef ({self.value_type})"
 
 # No first-class type but required to mark functions in the symbol table
 class Function(BaseType):
@@ -128,9 +142,9 @@ class Struct(BaseType):
 		#return self.field_types.sametype(other.field_types)
 	def __str__(self):
 		names = []
-		for name, typ in zip(self.field_names, self.field_types):
+		for name, typ in self.fields.items():
 			names.append(name + f" : {typ}")
-		names = ", ".join(names)
+		names = ", ".join(sorted(names))
 		return f"Struct {self.name} "+"{" + f"{names}" + "}"
 
 # Pseudo type used by the parser to comply to typing constraints
