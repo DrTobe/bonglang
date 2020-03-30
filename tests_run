@@ -1,4 +1,17 @@
 #!/usr/bin/bash
+if command -v mypy
+then
+	echo "Typechecking (mypy) Lexer"
+	mypy lexer.py
+	echo "Typechecking (mypy) Parser"
+	mypy parser.py
+	echo "Typechecking (mypy) Typechecker"
+	mypy typechecker.py
+	echo "Typechecking (mypy) Evaluator"
+	mypy evaluator.py
+else
+	echo "mypy not found, skipping python typechecks."
+fi
 echo Testing Lexer
 python -m unittest test_lexer.py
 echo "(lexer)"

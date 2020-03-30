@@ -137,22 +137,34 @@ class TestEvaluator(unittest.TestCase):
         self.check("struct A { x : int } struct B { y : A}", None)
         self.check("struct B { y : A } struct A { x : int }", None)
 
+    def test_struct_value(self):
+        self.typecheck("struct T { x : int } T { x : 5 }")
+        self.typecheck("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }")
+
+    # Helper method to typecheck the given code chunk
+    def typecheck(self, code):
+        checked = typecheck(code)
+        self.assertTrue(checked, "Expected typechecker to succeed.")
+
+    # Helper method to typecheck and evaluate-check the given code chunk
     def check(self, code, expected):
-        test_eval(code, expected, self)
+        # Here, we do typechecker-testing first, evaluator testing afterwards.
+        # This can be done because all code here should pass the typechecker.
+        # For testing that the typechecker catches invalid code, we have
+        # an additional test_typechecker.py
+        self.typecheck(code)
+        evaluated = evaluate(code, self.printer)
+        self.assertEqual(evaluated, expected, f"Expected {expected} but"
+            f" got {evaluated}")
 
     def printer(self, string):
         self.result = string
 
+# Just for backwards compatibility
 def test_eval(code, expected, test_class):
-    # Here, we do typechecker-testing first, evaluator testing afterwards.
-    # This can be done because all code here should pass the typechecker.
-    # For testing that the typechecker catches invalid code, we have
-    # an additional test_typechecker.py
-    checked = typecheck(code)
-    test_class.assertTrue(checked, "Expected typechecker to succeed.")
-    evaluated = evaluate(code, test_class.printer)
-    test_class.assertEqual(evaluated, expected, "Expected {} but got {}".format(expected, evaluated))
+    test_class.check(code, expected)
     
+# Evaluate the given code chunk, assert that typechecking works
 def evaluate(code, printer):
     l = Lexer(code, "test_evaluator.py input")
     p = Parser(l)

@@ -108,10 +108,10 @@ class TypeChecker:
             return self.symbol_table[identifier.typename].typ
         # Everything else (structs) will be determined by determining the inner types
         struct_def = self.struct_definitions[identifier.typename]
-        field_types = bongtypes.TypeList([])
-        for type_identifier in struct_def.field_types:
-            field_types.append(self.resolve_type(type_identifier, struct_def))
-        typ = bongtypes.Struct(identifier.typename, struct_def.field_names, field_types)
+        fields : typing.Dict[str, bongtypes.BaseType] = {}
+        for name, type_identifier in struct_def.fields.items():
+            fields[name] = self.resolve_type(type_identifier, struct_def)
+        typ = bongtypes.Struct(identifier.typename, fields)
         self.symbol_table[identifier.typename].typ = typ
         return typ
     
@@ -470,6 +470,28 @@ class TypeChecker:
             for i, typ in enumerate(types):
                 inner_type = merge_types(inner_type, typ, node)
             return TypeList([bongtypes.Array(inner_type)]), Return.NO
+        elif isinstance(node, ast.StructValue):
+            if not self.symbol_table.exists(node.name):
+                raise TypecheckException(f"Struct '{node.name}' not found.", node)
+            strct = self.symbol_table[node.name].typ
+            if type(strct)!=bongtypes.Struct:
+                raise TypecheckException(f"'{node.name}' is not a struct type.", node)
+            # TODO
+            argtypes, turn = self.check(node.args)
+            # Check builtin functions
+            if isinstance(func, bongtypes.BuiltinFunction):
+                try:
+                    return func.check(argtypes), Return.NO
+                except BongtypeException as e: # Convert to TypecheckException
+                    raise TypecheckException(e.msg, node)
+            # Otherwise, it is a bong function that has well-defined parameter types
+            match_types(func.parameter_types, argtypes, node,
+                    (f"Function '{node.name}' expects parameters of type "
+                    f"'{func.parameter_types}' but '{argtypes}' were given."))
+            # If everything goes fine (function can be called), it returns
+            # whatever the function declaration says \o/
+            return func.return_types, Return.NO
+
         elif isinstance(node, ast.ExpressionList):
             types = bongtypes.TypeList([])
             for exp in node:

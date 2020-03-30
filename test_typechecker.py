@@ -129,6 +129,14 @@ class TestTypechecker(unittest.TestCase):
         # TODO
         #self.check("struct A { x : B }; struct B { y : A }") # recursive types
 
+    def test_struct_value(self):
+        self.check("T { x : 5 }") # type undefined
+        self.check("T { foo : A { bar : 5 } }") # inner type undefined
+        self.check("struct T { x : int } T { y : 5 }") # wrong field name
+        self.check("struct T { x : int } T { x : 1.0 }") # wrong field type
+        self.check("struct A { x : int } struct B { x : A } B { x : A }") # A not initialized correctly
+        self.check("struct A { x : int } struct B { y : A } B { x : A { x : 1.0 } }") # wrong inner field type
+
     def check(self, code):
         worked = typecheck(code)
         self.assertFalse(worked, "Expected typechecker to fail.")

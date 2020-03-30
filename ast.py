@@ -297,17 +297,16 @@ class FunctionDefinition(BaseNode):
         return result
 
 class StructDefinition(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name : str, field_names : typing.List[str], field_types : typing.List[bongtypes.BongtypeIdentifier]):
+    def __init__(self, tokens : typing.List[Token], name : str, fields : typing.Dict[str, bongtypes.BongtypeIdentifier]):
         super().__init__(tokens, [])
         self.name = name
-        self.field_names = field_names
-        self.field_types = field_types
+        self.fields = fields
     def __str__(self):
-        fields = []
-        for name, typ in zip(self.field_names, self.field_types):
-            fields.append(name + " : " + str(typ))
+        fieldstrings = []
+        for name, typ in self.fields.items():
+            fieldstrings.append(name + " : " + str(typ))
         result = "struct " + self.name + " {\n"
-        result += ",\n".join(fields)
+        result += ",\n".join(sorted(fieldstrings)) # So that the result is deterministic
         result += "\n}"
         return result
 
@@ -326,17 +325,16 @@ class FunctionCall(BaseNode):
         return result
 
 class StructValue(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name : str, field_names : typing.List[str], field_values : typing.List[BaseNode]):
-        super().__init__(tokens, field_values)
+    def __init__(self, tokens : typing.List[Token], name : str, fields : typing.Dict[str, BaseNode]):
+        super().__init__(tokens, list(fields.values()))
         self.name = name
-        self.field_names = field_names
-        self.field_values = field_values
+        self.fields = fields
     def __str__(self):
         result = self.name + " {\n"
-        fields = []
-        for name, value in zip(self.field_names, self.field_values):
-            fields.append(f"{name} := {value}")
-        result += ",\n".join(fields)
+        fieldstrings = []
+        for name, value in self.fields.items():
+            fieldstrings.append(f"{name} := {value}")
+        result += ",\n".join(sorted(fieldstrings))
         result += "\n}"
         return result
 

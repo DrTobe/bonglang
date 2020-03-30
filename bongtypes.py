@@ -35,11 +35,11 @@ class BaseType:
 		return self.comp(other)
 	""" don't overload '==' and '!='
 	    those two are used to check for None, e.g. in typechecker
-	def __eq__(self, other):
-		return self.comp(other)
-	def __ne__(self, other):
-		return self.comp(other)
 	"""
+	def __eq__(self, other):
+		return self.sametype(other)
+	def __ne__(self, other):
+		return not self.__eq__(other)
 	# Instead, use:
 	def eq(self, other):
 		return False
@@ -114,18 +114,18 @@ class BuiltinFunction(BaseType):
 		return "BuiltinFunction (" + " ??? \o/ " + ")"
 
 class Struct(BaseType):
-	def __init__(self, name : str, field_names : typing.List[str], field_types : TypeList):
+	def __init__(self, name : str, fields : typing.Dict[str, BaseType]):
 		self.name = name
-		self.field_names = field_names
-		self.field_types = field_types
+		self.fields = fields
 	def sametype(self, other):
 		if not isinstance(other, Struct):
 			return False
 		if self.name != other.name:
 			return False
-		if self.field_names != other.field_names:
-			return False
-		return self.field_types.sametype(other.field_types)
+		return self.fields == other.fields
+		#if self.fields != other.fields:
+			#return False
+		#return self.field_types.sametype(other.field_types)
 	def __str__(self):
 		names = []
 		for name, typ in zip(self.field_names, self.field_types):

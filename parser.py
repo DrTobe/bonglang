@@ -172,16 +172,20 @@ class Parser:
             raise ParseException("Expected { to start the field list.")
         # Fields
         field_names, field_types = self.parse_parameters()
-        if len(field_names) != len(set(field_names)):
-            raise ParseException(f"Struct {name} contains duplicate field names.")
         if len(field_names) == 0:
             raise ParseException(f"Struct {name} is empty.")
+        fields : typing.Dict[str, bongtypes.BongtypeIdentifier] = {}
+        for field_name, field_type in zip(field_names, field_types):
+            if field_name in fields:
+                raise ParseException(f"Field '{field_name}' found multiple times"
+                        " in struct '{name}'.")
+            fields[field_name] = field_type
         # }
         if not toks.add(self.match(token.RBRACE)):
             raise ParseException("Expected } to end the field list.")
         # If everything went fine, register the struct name
         self.symbol_table.register(name, bongtypes.UnknownType())
-        return ast.StructDefinition(toks, name, field_names, field_types)
+        return ast.StructDefinition(toks, name, fields)
 
     # Used by parse_function_definition() and parse_struct_definition()
     def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[bongtypes.BongtypeIdentifier]]:
@@ -521,10 +525,10 @@ class Parser:
                 if not toks.add(self.match(token.LBRACE)):
                     raise Exception("Missing { for struct value.")
                 struct_name = tok.lexeme
-                field_names, field_values = self.parse_struct_fields()
+                fields = self.parse_struct_fields()
                 if not toks.add(self.match(token.RBRACE)):
                     raise ParseException("Missing } on struct value.")
-                return ast.StructValue(toks, struct_name, field_names, field_values)
+                return ast.StructValue(toks, struct_name, fields)
             if self.symbol_table.exists(self.peek(-1).lexeme):
                 return ast.Variable(toks, self.peek(-1).lexeme)
             name = self.peek(-1).lexeme
@@ -562,17 +566,16 @@ class Parser:
             return ast.ExpressionList([],[])
         return self.parse_commata_expressions()
 
-    def parse_struct_fields(self) -> typing.Tuple[typing.List[str], typing.List[ast.BaseNode]]:
-        names = []
-        values = []
+    def parse_struct_fields(self) -> typing.Dict[str, ast.BaseNode]:
+        fields : typing.Dict[str, ast.BaseNode] = {}
         name, value = self.parse_struct_field()
-        names.append(name)
-        values.append(value)
+        fields[name] = value
         while self.match(token.COMMA):
             name, value = self.parse_struct_field()
-            names.append(name)
-            values.append(value)
-        return names, values
+            if name in fields:
+                raise ParseException(f"Field '{name}' found multiple times")
+            fields[name] = value
+        return fields
     def parse_struct_field(self) -> typing.Tuple[str, ast.BaseNode]:
         if not self.match(token.IDENTIFIER):
             raise ParseException("Struct value requires at least one field.")

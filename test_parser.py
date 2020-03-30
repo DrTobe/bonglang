@@ -125,6 +125,7 @@ let c = 31415
 
     def test_struct_value(self):
         test_string(self, "name { a : 1, b : 2 }", "name {\na := 1,\nb := 2\n}")
+        self.fail("T { a : 1, b }") # we need fieldname-value-pairs!
         #self.fail("name { }") # no field values, does not fail because it is parsed as 'program call' + 'block'
         #self.fail("name { a : 1 }") # using : instead of =
         
