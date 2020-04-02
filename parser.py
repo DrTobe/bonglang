@@ -469,22 +469,63 @@ class Parser:
         return self.exponentiation()
 
     def exponentiation(self):
-        lhs = self.index_access()
+        lhs = self.access()
         if tok := self.match(token.OP_POW):
             rhs = self.exponentiation()
             lhs = ast.BinOp([tok], lhs, "^", rhs)
         return lhs
 
-    def index_access(self):
+    def access(self):
         lhs = self.primary()
         toks = TokenList()
-        while toks.add(self.match(token.LBRACKET)):
-            self.check_eof("Missing expression for indexing.")
-            rhs = self.expression()
-            if not toks.add(self.match(token.RBRACKET)):
-                raise ParseException("Missing ] for indexing.")
-            lhs = ast.IndexAccess(toks, lhs, rhs)
+        """
+        # For struct values, we have to check until 'T { field :' so that
+        # it can be distinguished from 'if t {'
+        # IndexAccess and FunctionCall are easier.
+        while (self.peek(0).type == token.LBRACKET          # IndexAccess
+                or self.peek(0).type == token.LPAREN        # FunctionCall
+                or (self.peek(0).type == token.LBRACE       # StructValue
+                    and self.peek(1).type == token.IDENTIFIER
+                    and self.peek(2).type == token.COLON)
+                ):
+                """
+        while self.following_access():
+            if toks.add(self.match(token.LBRACKET)):
+                self.check_eof("Missing expression for indexing.")
+                rhs = self.expression()
+                if not toks.add(self.match(token.RBRACKET)):
+                    raise ParseException("Missing ] for indexing.")
+                lhs = ast.IndexAccess(toks, lhs, rhs)
+            elif toks.add(self.match(token.LPAREN)):
+                arguments = self.parse_arguments()
+                if not toks.add(self.match(token.RPAREN)):
+                    raise ParseException("Missing ) on function call.")
+                lhs = ast.FunctionCall(toks, lhs, arguments)
+            else:
+                if not toks.add(self.match(token.LBRACE)):
+                    raise Exception("Missing { for struct value.")
+                fields = self.parse_struct_fields()
+                if not toks.add(self.match(token.RBRACE)):
+                    raise ParseException("Missing } on struct value.")
+                return ast.StructValue(toks, lhs, fields)
         return lhs
+
+    # Currently, we generate program calls in primary as a fallback if an identifier
+    # is not found. This causes us to parse program calls whenever a
+    # function or struct type is defined after it is used. To mitigate,
+    # we already have to check in primary() if a function call or struct
+    # value will follow. Since this is the condition that is required
+    # in access(), we transfer it to its own method and call it from
+    # access() and primary().
+    def following_access(self):
+        if self.peek(0).type == token.LBRACKET:
+            return True
+        if self.peek(0).type == token.LPAREN:
+            return True
+        if (self.peek(0).type == token.LBRACE
+                and self.peek(1).type == token.IDENTIFIER
+                and self.peek(2).type == token.COLON):
+            return True
 
     def primary(self):
         if tok := self.match(token.INT_VALUE):
@@ -511,31 +552,12 @@ class Parser:
             if not toks.add(self.match(token.RBRACKET)):
                 raise ParseException("Expected ].")
             return ast.Array(toks, elements)
-        # variable name, function call, struct value, ... program call fallback
-        if tok := self.match(token.IDENTIFIER):
-            toks.add(tok)
-            if toks.add(self.match(token.LPAREN)):
-                # TODO parse func_name as possible dot-access (move function one layer up)
-                func_name = ast.Identifier([tok], tok.lexeme)
-                arguments = self.parse_arguments()
-                if not toks.add(self.match(token.RPAREN)):
-                    raise ParseException("Missing ) on function call.")
-                return ast.FunctionCall(toks, func_name, arguments)
-            # For struct values, we have to check until 'T { field :' so that
-            # it can be distinguished from 'if t {'
-            elif (self.peek(0).type == token.LBRACE
-                    and self.peek(1).type == token.IDENTIFIER
-                    and self.peek(2).type == token.COLON):
-                if not toks.add(self.match(token.LBRACE)):
-                    raise Exception("Missing { for struct value.")
-                # TODO parse struct_name as dot-access (move one layer up, see above)
-                struct_name = ast.Identifier([tok], tok.lexeme)
-                fields = self.parse_struct_fields()
-                if not toks.add(self.match(token.RBRACE)):
-                    raise ParseException("Missing } on struct value.")
-                return ast.StructValue(toks, struct_name, fields)
-            if self.symbol_table.exists(self.peek(-1).lexeme):
+        # variable name, function call, struct value, ... here, we only
+        # parse the corresponding identifier or ... program call fallback
+        if toks.add(self.match(token.IDENTIFIER)):
+            if self.symbol_table.exists(self.peek(-1).lexeme) or self.following_access():
                 return ast.Identifier(toks, self.peek(-1).lexeme)
+            # Program Call fallback!
             name = self.peek(-1).lexeme
             args = self.syscall_arguments(name)
             # Add the last token we have used until now so that
