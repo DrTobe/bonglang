@@ -130,8 +130,8 @@ let c = 31415
         #self.fail("name { a : 1 }") # using : instead of =
 
     def test_dot_access(self):
-        pass
-        #test_string(self, "let a = 0; a.b", "{\na.b\n}")
+        test_string(self, "let a = 0; a.b", "{\na.b\n}")
+        self.fail("let a = 0; a.0") # missing identifier for dot access
         
     def fail(self, code):
         try:

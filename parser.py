@@ -489,7 +489,8 @@ class Parser:
                     and self.peek(2).type == token.COLON)
                 ):
                 """
-        while self.following_access():
+        while (self.following_access()
+                or self.peek().type == token.DOT):
             if toks.add(self.match(token.LBRACKET)):
                 self.check_eof("Missing expression for indexing.")
                 rhs = self.expression()
@@ -501,6 +502,11 @@ class Parser:
                 if not toks.add(self.match(token.RPAREN)):
                     raise ParseException("Missing ) on function call.")
                 lhs = ast.FunctionCall(toks, lhs, arguments)
+            elif toks.add(self.match(token.DOT)):
+                if not toks.add(self.match(token.IDENTIFIER)):
+                    raise ParseException("Missing identifier for DotIndex.")
+                rhs = self.peek(-1).lexeme
+                lhs = ast.DotAccess(toks, lhs, rhs)
             else:
                 if not toks.add(self.match(token.LBRACE)):
                     raise Exception("Missing { for struct value.")
