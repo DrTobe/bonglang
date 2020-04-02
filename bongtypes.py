@@ -71,8 +71,21 @@ class BaseType:
 	def __str__(self):
 		return "BaseType (please override the __str__ method for subtypes!)"
 
+# Meta-type for type hinting: ValueTypes are those types that expressions
+# can evaluate to or that variables could be of. This is everything that is
+# not Typedef, Function, BuiltinFunction, Module or some other meta type.
+# The typechecker can then ensure that two types match
+# and the matching types are ValueTypes. This prevents something like
+# 'int == int', 'float = float' or whatever. For all overloaded operators,
+# these checks are done automatically because the non ValueTypes do not
+# implement those. For everything else, we have to think about what to do.
+class ValueType(BaseType):
+	pass
+
 # Meta-type for expression lists
 # TypeList does not derive from BaseType so it can not contain itself. Nice!
+# The contained types are not ValueTypes because it could be function names or
+# module names.
 class TypeList(FlatList):
 	def __init__(self, contained_types : typing.List[BaseType]):
 		super().__init__(contained_types)
@@ -96,7 +109,7 @@ class TypeList(FlatList):
 # This class is required so that type-names and type-values are of different
 # types, e.g. 'int' and '5' should differ in type, i.e. 'int == 5' should fail!
 class Typedef(BaseType):
-	def __init__(self, typ : BaseType):
+	def __init__(self, typ : ValueType):
 		self.value_type = typ
 	def sametype(self, other):
 		return type(other)==Typedef and self.value_type.sametype(other.value_type)
@@ -127,7 +140,33 @@ class BuiltinFunction(BaseType):
 	def __str__(self):
 		return "BuiltinFunction (" + " ??? \o/ " + ")"
 
-class Struct(BaseType):
+# Pseudo type used by the parser to comply to typing constraints
+class UnknownType(BaseType):
+	def sametype(self, other):
+		if type(other)==UnknownType:
+			return True
+		return False
+	def __str__(self):
+		return "UnknownType"
+# Pseudo-type for let statements with automatic type resolution and empty arrays.
+# Currently, the AutoType is required to be a ValueType although this should
+# be resolved before evaluating the code. Anyways, AutoTypes are used longer
+# than UnknownTypes, e.g. they are added to Arrays when automatic type resolution
+# happens. Arrays should only contain ValueTypes so AutoType has to be a
+# ValueType.
+# From one point of view AutoType should not be a ValueType because we can not
+# actually work with that information at some point.
+# On the other hand, all AutoTypes will be resolved to ValueTypes or the
+# typechecker will fail, so it is ok to have it like this.
+class AutoType(ValueType):
+	def sametype(self, other):
+		if type(other)==AutoType:
+			return True
+		return False
+	def __str__(self):
+		return "AutoType"
+
+class Struct(ValueType):
 	def __init__(self, name : str, fields : typing.Dict[str, BaseType]):
 		self.name = name
 		self.fields = fields
@@ -147,26 +186,7 @@ class Struct(BaseType):
 		names = ", ".join(sorted(names))
 		return f"Struct {self.name} "+"{" + f"{names}" + "}"
 
-# Pseudo type used by the parser to comply to typing constraints
-# TODO Currently not passed out of the parser because we still resolve
-# types in the parser as long as we do not support custom types
-class UnknownType(BaseType):
-	def sametype(self, other):
-		if type(other)==UnknownType:
-			return True
-		return False
-	def __str__(self):
-		return "UnknownType"
-# Pseudo-type for let statements with automatic type resolution and empty arrays
-class AutoType(BaseType):
-	def sametype(self, other):
-		if type(other)==AutoType:
-			return True
-		return False
-	def __str__(self):
-		return "AutoType"
-
-class Integer(BaseType):
+class Integer(ValueType):
 	def __add__(self, other):
 		return self.arith(other)
 	def __sub__(self, other):
@@ -204,7 +224,7 @@ class Integer(BaseType):
 	def __str__(self):
 		return "Integer"
 
-class Float(BaseType):
+class Float(ValueType):
 	def __add__(self, other):
 		return self.arith(other)
 	def __sub__(self, other):
@@ -242,7 +262,7 @@ class Float(BaseType):
 	def __str__(self):
 		return "Float"
 
-class Boolean(BaseType):
+class Boolean(ValueType):
 	def eq(self, other):
 		return self.comp(other)
 	def ne(self, other):
@@ -254,7 +274,7 @@ class Boolean(BaseType):
 	def __str__(self):
 		return "Boolean"
 
-class String(BaseType):
+class String(ValueType):
 	def __add__(self, other):
 		if type(other)==String:
 			return String()
@@ -270,9 +290,9 @@ class String(BaseType):
 	def __str__(self):
 		return "String"
 
-class Array(BaseType):
-	def __init__(self, contained_type : BaseType):
-		self.contained_type : BaseType = contained_type
+class Array(ValueType):
+	def __init__(self, contained_type : ValueType):
+		self.contained_type : ValueType = contained_type
 	def __add__(self, other):
 		if type(other)==Array:
 			if type(other.contained_type)==type(self.contained_type):
@@ -309,12 +329,6 @@ class BongtypeIdentifier:
 	def __init__(self, typename : str, num_array_levels : int = 0):
 		self.typename = typename
 		self.num_array_levels = num_array_levels
-	def get_bongtype(self) -> BaseType:
-		if self.num_array_levels > 0:
-			return Array(BongtypeIdentifier(self.typename, self.num_array_levels-1).get_bongtype())
-		if self.typename in basic_types:
-			return basic_types[self.typename]()
-		raise Exception("Unknown type '{}'".format(self.typename))
 	def __str__(self):
 		#s = "BongtypeIdentifier ("
 		s = ""
@@ -322,12 +336,6 @@ class BongtypeIdentifier:
 		s += self.typename
 		# s += ")"
 		return s
-
-def get_bongtypes(types : typing.List[BongtypeIdentifier]) -> TypeList:
-	l = TypeList([])
-	for typ in types:
-		l.append(typ.get_bongtype())
-	return l
 
 class BongtypeException(Exception):
 	def __init__(self, msg : str):

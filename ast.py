@@ -1,3 +1,4 @@
+from __future__ import annotations
 import token_def as token
 from token_def import Token
 import symbol_table
@@ -81,6 +82,20 @@ class Program(BaseNode):
             stmts.append(str(stmt))
         return "{\n" + "\n".join(stmts) + "\n}"
 
+class ExpressionList(FlatList, BaseNode):
+    def __init__(self, tokens : typing.List[Token], elements : typing.List[BaseNode]):
+        super().__init__(elements)
+        # Initializing BaseNode has to be done manually because of the python
+        # multiple inheritance approach
+        self.tokens = tokens
+        # Use Python's turbo-error:
+        # self.inner_nodes = elements causes BaseNode.inner_nodes to be a
+        # reference to the same list as FlatList.elements. Like this,
+        # ExpressionList.append() adds the element for FlatList and for BaseNode
+        self.inner_nodes = elements
+    def __str__(self):
+        return ", ".join(map(str,self.elements))
+
 class Block(BaseNode):
     def __init__(self, tokens : typing.List[Token], stmts : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):
         super().__init__(tokens, stmts)
@@ -121,7 +136,7 @@ class BinOp(BaseNode):
         return "("+str(self.lhs)+self.op+str(self.rhs)+")"
 
 class AssignOp(BaseNode):
-    def __init__(self, tokens : typing.List[Token], lhs: BaseNode, rhs: BaseNode):
+    def __init__(self, tokens : typing.List[Token], lhs: ExpressionList, rhs: typing.Union[ExpressionList, AssignOp]):
         super().__init__(tokens, [lhs, rhs])
         self.lhs = lhs
         self.rhs = rhs
@@ -164,15 +179,8 @@ class Bool(BaseNode):
     def __str__(self):
         return "true" if self.value == True else "false"
 
-class Variable(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name):
-        super().__init__(tokens, [])
-        self.name = name
-    def __str__(self):
-        return self.name
-
 class IndexAccess(BaseNode):
-    def __init__(self, tokens : typing.List[Token], lhs, rhs):
+    def __init__(self, tokens : typing.List[Token], lhs : BaseNode, rhs : BaseNode): # lhs : Identifier or DotAccess, rhs : Expression
         super().__init__(tokens, [lhs, rhs])
         self.lhs = lhs
         self.rhs = rhs
@@ -186,20 +194,6 @@ class Print(BaseNode):
         self.expr = expr
     def __str__(self):
         return "print "+str(self.expr)+";"
-
-class ExpressionList(FlatList, BaseNode):
-    def __init__(self, tokens : typing.List[Token], elements : typing.List[BaseNode]):
-        super().__init__(elements)
-        # Initializing BaseNode has to be done manually because of the python
-        # multiple inheritance approach
-        self.tokens = tokens
-        # Use Python's turbo-error:
-        # self.inner_nodes = elements causes BaseNode.inner_nodes to be a
-        # reference to the same list as FlatList.elements. Like this,
-        # ExpressionList.append() adds the element for FlatList and for BaseNode
-        self.inner_nodes = elements
-    def __str__(self):
-        return ", ".join(map(str,self.elements))
 
 class Let(BaseNode):
     def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]], expr : typing.Union[ExpressionList, AssignOp]): # rhs = Expressions or Assignment
@@ -310,13 +304,28 @@ class StructDefinition(BaseNode):
         result += "\n}"
         return result
 
+class Identifier(BaseNode):
+    def __init__(self, tokens : typing.List[Token], name : str):
+        super().__init__(tokens, [])
+        self.name = name
+    def __str__(self):
+        return self.name
+
+class DotAccess(BaseNode):
+    def __init__(self, tokens : typing.List[Token], lhs : BaseNode, rhs : str):
+        super().__init__(tokens, [lhs])
+        self.lhs = lhs
+        self.rhs = rhs
+    def __str__(self):
+        return str(self.lhs)+"."+self.rhs
+
 class FunctionCall(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name, args):
-        super().__init__(tokens, [args])
+    def __init__(self, tokens : typing.List[Token], name : BaseNode, args):
+        super().__init__(tokens, [name, args])
         self.name = name
         self.args = args
     def __str__(self):
-        result = self.name + "("
+        result = str(self.name) + "("
         args = []
         for a in self.args:
             args.append(str(a))
@@ -325,12 +334,12 @@ class FunctionCall(BaseNode):
         return result
 
 class StructValue(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name : str, fields : typing.Dict[str, BaseNode]):
-        super().__init__(tokens, list(fields.values()))
+    def __init__(self, tokens : typing.List[Token], name : BaseNode, fields : typing.Dict[str, BaseNode]):
+        super().__init__(tokens, [name] + list(fields.values()))
         self.name = name
         self.fields = fields
     def __str__(self):
-        result = self.name + " {\n"
+        result = str(self.name) + " {\n"
         fieldstrings = []
         for name, value in self.fields.items():
             fieldstrings.append(f"{name} := {value}")

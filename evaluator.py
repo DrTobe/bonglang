@@ -172,14 +172,16 @@ class Eval:
                 return lastProcess.returncode
             else:
                 return lastProcess.returncode
-        elif isinstance(node, ast.Variable):
+        elif isinstance(node, ast.Identifier):
             return self.environment.get(node.name)
         elif isinstance(node, ast.IndexAccess):
             index = self.evaluate(node.rhs)
             lhs = self.evaluate(node.lhs)
             return lhs[index]
         if isinstance(node, ast.FunctionCall):
-            function = self.functions.get(node.name)
+            assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
+            funcname = node.name.name
+            function = self.functions.get(funcname)
             if isinstance(function, ast.FunctionDefinition):
                 # TODO Obsolete thanks to typechecker?
                 if len(function.parameter_names) != len(node.args):
@@ -247,7 +249,7 @@ class Eval:
                 # because they could be accessed during evaluation of the rhses
                 # but it is the end of a pipeline so the rhses are already evaled.
                 self.environment.register(name)
-                lhs.append(ast.Variable(let.tokens, name)) # ugly :( 'let' is required because we can not instantiate an ast node without inner elements, but that's not the only ugly thing here :)
+                lhs.append(ast.Identifier(let.tokens, name)) # ugly :( 'let' is required because we can not instantiate an ast node without inner elements, but that's not the only ugly thing here :)
         elif not isinstance(lhs, list):
             lhs = [lhs]
         # First, evaluate all rhses, then assign to all lhses
@@ -282,12 +284,12 @@ class Eval:
         for l, value in zip(lhs, results):
             # 2. lhs evaluation: The lhs can be a variable assignment or an
             # index access which is just handled differently here.
-            if isinstance(l, ast.Variable):
+            if isinstance(l, ast.Identifier):
                 name = l.name
                 self.environment.set(name, value)
             elif isinstance(l, ast.IndexAccess):
                 index_access = l
-                if not isinstance(index_access.lhs, ast.Variable):
+                if not isinstance(index_access.lhs, ast.Identifier):
                     raise(Exception("Can only index variables"))
                 name = index_access.lhs.name
                 index = self.evaluate(index_access.rhs)

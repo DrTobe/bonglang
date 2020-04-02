@@ -128,6 +128,10 @@ let c = 31415
         self.fail("T { a : 1, b }") # we need fieldname-value-pairs!
         #self.fail("name { }") # no field values, does not fail because it is parsed as 'program call' + 'block'
         #self.fail("name { a : 1 }") # using : instead of =
+
+    def test_dot_access(self):
+        pass
+        #test_string(self, "let a = 0; a.b", "{\na.b\n}")
         
     def fail(self, code):
         try:

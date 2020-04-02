@@ -350,10 +350,11 @@ class Parser:
         return ast.Block(toks, statements, block_symbol_table)
 
     def assignment(self) -> typing.Union[ast.ExpressionList, ast.AssignOp]:
-        lhs : typing.Union[ast.ExpressionList, ast.AssignOp] = self.parse_commata_expressions()
-        while tok := self.match(token.ASSIGN):
-            rhs : ast.BaseNode = self.assignment()
-            lhs = ast.AssignOp([tok], lhs, rhs)
+        lhs = self.parse_commata_expressions()
+        # Parse only one '=', the others are consumed by the inner self.assignment()
+        if tok := self.match(token.ASSIGN):
+            rhs = self.assignment()
+            return ast.AssignOp([tok], lhs, rhs)
         return lhs
 
     def expression(self) -> ast.BaseNode:
@@ -495,12 +496,14 @@ class Parser:
         if tok := self.match(token.BOOL_VALUE):
             return ast.Bool([tok], True if self.peek(-1).lexeme=="true" else False)
         toks = TokenList()
+        # parentheses ( ... )
         if toks.add(self.match(token.LPAREN)):
             exp = self.expression()
             if not toks.add(self.match(token.RPAREN)):
                 raise ParseException("Missing closing parenthesis ).")
             exp.tokens.extend(toks)
             return exp
+        # array values [ ... ]
         if toks.add(self.match(token.LBRACKET)):
             if toks.add(self.match(token.RBRACKET)):
                 return ast.Array(toks, ast.ExpressionList([], []))
@@ -512,7 +515,8 @@ class Parser:
         if tok := self.match(token.IDENTIFIER):
             toks.add(tok)
             if toks.add(self.match(token.LPAREN)):
-                func_name = tok.lexeme
+                # TODO parse func_name as possible dot-access (move function one layer up)
+                func_name = ast.Identifier([tok], tok.lexeme)
                 arguments = self.parse_arguments()
                 if not toks.add(self.match(token.RPAREN)):
                     raise ParseException("Missing ) on function call.")
@@ -524,13 +528,14 @@ class Parser:
                     and self.peek(2).type == token.COLON):
                 if not toks.add(self.match(token.LBRACE)):
                     raise Exception("Missing { for struct value.")
-                struct_name = tok.lexeme
+                # TODO parse struct_name as dot-access (move one layer up, see above)
+                struct_name = ast.Identifier([tok], tok.lexeme)
                 fields = self.parse_struct_fields()
                 if not toks.add(self.match(token.RBRACE)):
                     raise ParseException("Missing } on struct value.")
                 return ast.StructValue(toks, struct_name, fields)
             if self.symbol_table.exists(self.peek(-1).lexeme):
-                return ast.Variable(toks, self.peek(-1).lexeme)
+                return ast.Identifier(toks, self.peek(-1).lexeme)
             name = self.peek(-1).lexeme
             args = self.syscall_arguments(name)
             # Add the last token we have used until now so that

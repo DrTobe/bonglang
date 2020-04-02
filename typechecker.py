@@ -95,7 +95,7 @@ class TypeChecker:
     # It can crash whenever an inner type in a struct, a type hint in a function
     # interface or a type hint in a let statement uses a typename that is not defined.
     # TODO Prevent recursion
-    def resolve_type(self, identifier : bongtypes.BongtypeIdentifier, node : ast.BaseNode) -> bongtypes.BaseType:
+    def resolve_type(self, identifier : bongtypes.BongtypeIdentifier, node : ast.BaseNode) -> bongtypes.ValueType:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
             return bongtypes.Array(self.resolve_type(bongtypes.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), node))
@@ -131,6 +131,23 @@ class TypeChecker:
         for ret in function.return_types:
             returns.append(self.resolve_type(ret, function))
         self.symbol_table[function.name].typ = bongtypes.Function(parameters, returns)
+
+    def is_writable(self, node : ast.BaseNode):
+        if isinstance(node, ast.Identifier):
+            return True # TODO Check symbol table (could be function name, module name, typedef)
+        elif isinstance(node, ast.IndexAccess):
+            return True # Should be safe
+        elif isinstance(node, ast.DotAccess):
+            return True # TODO evaluate and check symbol table (could be function name)
+        elif isinstance(node, ast.ExpressionList):
+            ok = True
+            for n in node.inner_nodes:
+                if not self.is_writable(n):
+                    ok = False
+            return ok
+        # Everything else shouldn't be writable (function calls, blocks, ...)
+        else:
+            return False
 
     # Determine the type of the ast node.
     # This method returns the TypeList (0, 1 or N elements) that the node will
@@ -208,21 +225,14 @@ class TypeChecker:
                 return types, Return.MAYBE
             return types, turn
         if isinstance(node, ast.AssignOp):
-            # Multiple assignments are parsed/executed rhs-first
-            # so we only have to switch-case the rhs
-            if isinstance(node.rhs, ast.BinOp): # Multiple assignments at once
-                if node.rhs.op != "=":
-                    raise BongtypeException("Assignment expected!")
             rhs, turn = self.check(node.rhs)
-            assert isinstance(node.lhs, ast.ExpressionList)
-            for var in node.lhs:
-                if not (isinstance(var, ast.Variable) or isinstance(var, ast.IndexAccess)):
-                    raise BongtypeException("Lhs of assignment must be a variable!")
             lhs, turn = self.check(node.lhs)
             match_types(lhs, rhs, node, 
                     ("Variable and expression types in assignment do"
                     f" not match. Lhs expects '{lhs}' but rhs evaluates"
                     f" to '{rhs}'"))
+            if not self.is_writable(node.lhs):
+                raise TypecheckException("Lhs of assignment is no writable variable!", node.lhs)
             return lhs, Return.NO
         if isinstance(node, ast.BinOp):
             op = node.op
@@ -331,21 +341,9 @@ class TypeChecker:
                     programcalls.append(node.elements[-1])
                 else:
                     assignto = node.elements[-1]
-                    # a) Variable
-                    # a2) Variables in ExpressionList
-                    # b) IndexAccess (not supported in parser yet)
-                    # c) PipelineLet
-                    # For all three (currently two) cases, the assignee must evaluate to string
-                    # TODO It seems to me that stronger typing would clear things here a bit
-                    if isinstance(assignto, ast.Variable): # a)
-                        stdout, turn = self.check(assignto)
-                        if not stdout.sametype(strtype):
-                            raise TypecheckException("The output of a pipeline can only be written to a string variable, {} was found instead.".format(stdout), assignto)
-                    elif isinstance(assignto, ast.ExpressionList): # a2)
-                        outNerr, turn = self.check(assignto)
-                        if not outNerr.sametype(TypeList([bongtypes.String(), bongtypes.String()])):
-                            raise TypecheckException("The output of a pipeline can only be written to two string variables, '{}' was found instead.".format(outNerr), assignto)
-                    elif isinstance(assignto, ast.PipelineLet):
+                    # Either the assignto is a PipelineLet, then check it manually,
+                    # or the assignto is something else, then do the same checks as for assignments.
+                    if isinstance(assignto, ast.PipelineLet):
                         names = assignto.names
                         if len(names) > 2 or len(names)==0:
                             raise TypecheckException("The output of a pipeline can only be written to one or two string variables, let with {} variables  was found instead.".format(len(names)), assignto)
@@ -360,7 +358,14 @@ class TypeChecker:
                             else:
                                 self.symbol_table[name].typ = bongtypes.String()
                     else:
-                        raise TypecheckException("The output of a pipeline can only"
+                        output, turn = self.check(assignto)
+                        writable = self.is_writable(assignto)
+                        if (not writable or 
+                                (not output.sametype(strtype)
+                                    and not output.sametype(TypeList([bongtypes.String(), bongtypes.String()]))
+                                    )
+                                ):
+                            raise TypecheckException("The output of a pipeline can only"
                                 f" be written to string variables, {assignto} found"
                                 " instead.", assignto)
                 # Check that everything in between actually is a program call
@@ -375,7 +380,7 @@ class TypeChecker:
                             self.symbol_table.remove(name)
                 raise
             return TypeList([bongtypes.Integer()]), Return.NO
-        elif isinstance(node, ast.Variable):
+        elif isinstance(node, ast.Identifier):
             return TypeList([self.symbol_table.get(node.name).typ]), Return.NO
         elif isinstance(node, ast.IndexAccess):
             index, turn = self.check(node.rhs)
@@ -417,11 +422,13 @@ class TypeChecker:
                 self.pop_symtable()
             return TypeList([]), Return.NO # FunctionDefinition itself returns nothing
         if isinstance(node, ast.FunctionCall):
-            if not self.symbol_table.exists(node.name):
-                raise TypecheckException("Function '{}' not found.".format(node.name), node)
-            func = self.symbol_table[node.name].typ
+            assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
+            funcname = node.name.name
+            if not self.symbol_table.exists(funcname):
+                raise TypecheckException("Function '{}' not found.".format(funcname), node)
+            func = self.symbol_table[funcname].typ
             if type(func)!=bongtypes.Function and type(func)!=bongtypes.BuiltinFunction:
-                raise TypecheckException("'{}' is not a function.".format(node.name), node)
+                raise TypecheckException("'{}' is not a function.".format(funcname), node)
             argtypes, turn = self.check(node.args)
             # Check builtin functions
             if isinstance(func, bongtypes.BuiltinFunction):
@@ -431,7 +438,7 @@ class TypeChecker:
                     raise TypecheckException(e.msg, node)
             # Otherwise, it is a bong function that has well-defined parameter types
             match_types(func.parameter_types, argtypes, node,
-                    (f"Function '{node.name}' expects parameters of type "
+                    (f"Function '{funcname}' expects parameters of type "
                     f"'{func.parameter_types}' but '{argtypes}' were given."))
             # If everything goes fine (function can be called), it returns
             # whatever the function declaration says \o/
@@ -470,18 +477,20 @@ class TypeChecker:
             # just have to check that all those types are equal.
             # I'm fascinated how everything magically works automatically. Isn't that beautiful?
             types, turn = self.check(node.elements)
-            inner_type : bongtypes.BaseType = bongtypes.AutoType()
+            inner_type : bongtypes.ValueType = bongtypes.AutoType()
             # Otherwise, all contained types should match
             for i, typ in enumerate(types):
                 inner_type = merge_types(inner_type, typ, node)
             return TypeList([bongtypes.Array(inner_type)]), Return.NO
         elif isinstance(node, ast.StructValue):
-            if not self.symbol_table.exists(node.name):
+            assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
+            structname = node.name.name
+            if not self.symbol_table.exists(structname):
                 raise TypecheckException(f"Struct '{node.name}' not found.", node)
-            struct_type = self.symbol_table[node.name].typ
+            struct_type = self.symbol_table[structname].typ
             if (type(struct_type)!=bongtypes.Typedef
                     or type(struct_type.value_type)!=bongtypes.Struct):
-                raise TypecheckException(f"'{node.name}' is not a struct type.", node)
+                raise TypecheckException(f"'{structname}' is not a struct type.", node)
             fields : typing.Dict[str, bongtypes.BaseType] = {}
             for name, value in node.fields.items():
                 argtypes, turn = self.check(value)
@@ -490,7 +499,7 @@ class TypeChecker:
                             " to a single value.", value)
                 # Duplicates are caught in the parser, we can just assign here.
                 fields[name] = argtypes[0]
-            struct_val = bongtypes.Struct(node.name, fields)
+            struct_val = bongtypes.Struct(structname, fields) # TODO this name needs to be resolved, see line above
             if struct_type.value_type != struct_val:
                 # TODO We definitely need better error reporting here!
                 raise TypecheckException("Instantiated struct does not match"
@@ -523,19 +532,22 @@ class TypeChecker:
 # array that was given (and could possibly empty or contain empty arrays). If
 # this fails, this automatically raises a TypecheckException. To distinguish
 # the different cases, an optional error message can be supplied.
-def merge_types(x : bongtypes.BaseType, y : bongtypes.BaseType, node : ast.BaseNode, msg : typing.Optional[str] = None) -> bongtypes.BaseType:
+def merge_types(x : bongtypes.ValueType, y : bongtypes.BaseType, node : ast.BaseNode, msg : typing.Optional[str] = None) -> bongtypes.ValueType:
     if x.sametype(bongtypes.AutoType()):
+        if not isinstance(y, bongtypes.ValueType):
+            raise TypecheckException(mergemsg(f"Types '{x}' and '{y}' can not be"
+                " merged because type {y} can not be instantiated.", msg), node)
         return y
     if y.sametype(bongtypes.AutoType()):
         return x
     if isinstance(x, bongtypes.Array) and isinstance(y, bongtypes.Array):
         return bongtypes.Array(merge_types(x.contained_type, y.contained_type, node, msg))
     if not x.sametype(y):
-        if isinstance(msg, str):
-            raise TypecheckException(msg, node)
-        else:
-            raise TypecheckException("Types '{}' and '{}' are incompatible.".format(x, y), node)
+        raise TypecheckException(mergemsg(f"Types '{x}' and '{y}' are"
+            " incompatible.", msg), node)
     return x
+def mergemsg(a, b):
+    return b if isinstance(b,str) else a
 
 def match_types(lhs : TypeList, rhs : TypeList, node : ast.BaseNode, msg : str):
     if len(lhs)!=len(rhs):
