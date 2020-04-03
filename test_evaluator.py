@@ -138,8 +138,16 @@ class TestEvaluator(unittest.TestCase):
         self.check("struct B { y : A } struct A { x : int }", None)
 
     def test_struct_value(self):
-        self.typecheck("struct T { x : int } T { x : 5 }")
-        self.typecheck("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }")
+        self.check("struct T { x : int } T { x : 5 }", "T { x : 5 }")
+        self.check("struct T { x : int } let a = T { x : 5 }; a", "T { x : 5 }")
+        self.check("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }", "T { x : B { y : 7 } }")
+        self.check("struct T { x : B } struct B { y : int } let a = T { x : B { y : 7 } }; a", "T { x : B { y : 7 } }")
+
+    def test_dot_access(self):
+        return # TODO TBD
+        self.check("struct T { x : int } T { x : 5 }.x", 5)
+        self.check("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }.x", "B { y : 7 }")
+        self.check("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }.x.y", "7")
 
     # Helper method to typecheck the given code chunk
     def typecheck(self, code):
@@ -154,6 +162,8 @@ class TestEvaluator(unittest.TestCase):
         # an additional test_typechecker.py
         self.typecheck(code)
         evaluated = evaluate(code, self.printer)
+        if type(expected) == str:
+            evaluated = str(evaluated)
         self.assertEqual(evaluated, expected, f"Expected {expected} but"
             f" got {evaluated}")
 

@@ -2,6 +2,7 @@ import ast
 from environment import Environment
 import bong_builtins
 from flatlist import FlatList
+from collections import UserDict
 
 # For subprocesses
 import os
@@ -224,6 +225,11 @@ class Eval:
             for e in node.elements:
                 elements.append(self.evaluate(e))
             return elements
+        elif isinstance(node, ast.StructValue):
+            structval = StructValue(node.name)
+            for name, expr in node.fields.items():
+                structval[name] = self.evaluate(expr)
+            return structval
         elif isinstance(node, ast.ExpressionList):
             results = ValueList([])
             for exp in node.elements:
@@ -464,3 +470,13 @@ class ReturnValue:
             result += " "
             result += str(self.value)
         return result
+
+class StructValue(UserDict):
+    def __init__(self, name : ast.BaseNode): # name should be Identifier or DotAccess
+        super().__init__()
+        self.name = name
+    def __str__(self):
+        fields = []
+        for name, value in self.data.items():
+            fields.append(name + " : " + str(value))
+        return str(self.name) + " { " + ", ".join(sorted(fields)) + " }"

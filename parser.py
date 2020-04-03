@@ -512,7 +512,10 @@ class Parser:
                 fields = self.parse_struct_fields()
                 if not toks.add(self.match(token.RBRACE)):
                     raise ParseException("Missing } on struct value.")
-                return ast.StructValue(toks, lhs, fields)
+                # The statement/access is finished after instantiating a struct
+                #return ast.StructValue(toks, lhs, fields)
+                # A newly instantiated struct can be accessed directly
+                lhs = ast.StructValue(toks, lhs, fields)
         return lhs
 
     # Currently, we generate program calls in primary as a fallback if an identifier
