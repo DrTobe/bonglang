@@ -137,6 +137,15 @@ class TestTypechecker(unittest.TestCase):
         self.check("struct A { x : int } struct B { x : A } B { x : A }") # A not initialized correctly
         self.check("struct A { x : int } struct B { y : A } B { x : A { x : 1.0 } }") # wrong inner field type
 
+    def test_dot_access(self):
+        self.check("a.b") # Variable missing
+        self.check("struct T { x : int } let a = T { x : 5 }; a.y") # wrong field
+        self.check("struct T { x : int } let a = T { x : 5 }; a.x = 1.0") # wrong field type
+        self.check("struct T { x : int } let a = T { x : 5 }; a = 1.0") # type does not match
+        self.check("struct T { x : int } let a = 1.0; a = T { x : 5 }") # type does not match
+        self.check("struct T { x : int } struct U { y : int } let a = T { x : 5 }; a = U { y : 7 }") # type does not match
+        self.check("struct T { x : int } struct U { y : float } let a = T { x : 5 }; let b = U { y : 7.0 }; a.x = b.y") # type does not match
+
     def check(self, code):
         worked = typecheck(code)
         self.assertFalse(worked, "Expected typechecker to fail.")

@@ -167,7 +167,7 @@ class AutoType(ValueType):
 		return "AutoType"
 
 class Struct(ValueType):
-	def __init__(self, name : str, fields : typing.Dict[str, BaseType]):
+	def __init__(self, name : str, fields : typing.Dict[str, ValueType]):
 		self.name = name
 		self.fields = fields
 	def sametype(self, other):

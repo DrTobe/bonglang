@@ -114,7 +114,7 @@ class TypeChecker:
             raise TypecheckException(f"Type {identifier.typename} can not be"
                     " resolved.", node)
         struct_def = self.struct_definitions[identifier.typename]
-        fields : typing.Dict[str, bongtypes.BaseType] = {}
+        fields : typing.Dict[str, bongtypes.ValueType] = {}
         for name, type_identifier in struct_def.fields.items():
             fields[name] = self.resolve_type(type_identifier, struct_def)
         value_type = bongtypes.Struct(identifier.typename, fields)
@@ -381,6 +381,8 @@ class TypeChecker:
                 raise
             return TypeList([bongtypes.Integer()]), Return.NO
         elif isinstance(node, ast.Identifier):
+            if not self.symbol_table.exists(node.name):
+                raise TypecheckException(f"{node.name} is undefined.", node)
             return TypeList([self.symbol_table.get(node.name).typ]), Return.NO
         elif isinstance(node, ast.IndexAccess):
             index, turn = self.check(node.rhs)
@@ -394,7 +396,16 @@ class TypeChecker:
             if isinstance(lhs[0], bongtypes.Array): # bong array
                 return TypeList([lhs[0].contained_type]), Return.NO
             raise TypecheckException("IndexAccess with unsupported type.", node.lhs)
-        if isinstance(node, ast.FunctionDefinition):
+        elif isinstance(node, ast.DotAccess):
+            lhs, turn = self.check(node.lhs)
+            if len(lhs)!=1:
+                raise TypecheckException("DotAccess requires a single variable/identifier.", node.lhs)
+            if isinstance(lhs[0], bongtypes.Struct): # bong struct
+                if node.rhs in lhs[0].fields:
+                    value_type = lhs[0].fields[node.rhs]
+                    return TypeList([value_type]), Return.NO
+            raise TypecheckException("DotAccess with unsupported type.", node.lhs)
+        elif isinstance(node, ast.FunctionDefinition):
             # The function interface should already be completely in the symbol table.
             # Here, we only check that the function block is valid and that it returns
             # what we expect!
@@ -491,13 +502,15 @@ class TypeChecker:
             if (type(struct_type)!=bongtypes.Typedef
                     or type(struct_type.value_type)!=bongtypes.Struct):
                 raise TypecheckException(f"'{structname}' is not a struct type.", node)
-            fields : typing.Dict[str, bongtypes.BaseType] = {}
+            fields : typing.Dict[str, bongtypes.ValueType] = {}
             for name, value in node.fields.items():
                 argtypes, turn = self.check(value)
                 if len(argtypes) != 1:
                     raise TypecheckException("Expression does not evaluate"
                             " to a single value.", value)
                 # Duplicates are caught in the parser, we can just assign here.
+                if not isinstance(argtypes[0], bongtypes.ValueType):
+                    raise TypecheckException("ValueType expected", value)
                 fields[name] = argtypes[0]
             struct_val = bongtypes.Struct(structname, fields) # TODO this name needs to be resolved, see line above
             if struct_type.value_type != struct_val:
