@@ -489,8 +489,7 @@ class Parser:
                     and self.peek(2).type == token.COLON)
                 ):
                 """
-        while (self.following_access()
-                or self.peek().type == token.DOT):
+        while self.following_access():
             if toks.add(self.match(token.LBRACKET)):
                 self.check_eof("Missing expression for indexing.")
                 rhs = self.expression()
@@ -527,6 +526,8 @@ class Parser:
         if self.peek(0).type == token.LBRACKET:
             return True
         if self.peek(0).type == token.LPAREN:
+            return True
+        if self.peek(0).type == token.DOT:
             return True
         if (self.peek(0).type == token.LBRACE
                 and self.peek(1).type == token.IDENTIFIER

@@ -113,7 +113,7 @@ let c = 31415
 
 
     def test_struct_definition(self):
-        test_string(self, "struct mytype { foo : int, bar : float }", "{\nstruct mytype {\nfoo : int,\nbar : float\n}\n}")
+        test_string(self, "struct mytype { foo : int, bar : float }", "{\nstruct mytype {\nbar : float,\nfoo : int\n}\n}")
         self.fail("struct T { x : int, x : float }") # x two times
         self.fail("struct T { x : int, x : int }") # x two times
         self.fail("struct int { x : int, y : float }") # name already taken
@@ -124,14 +124,19 @@ let c = 31415
         self.fail("struct T { x, y : int }") # field type missing
 
     def test_struct_value(self):
-        test_string(self, "name { a : 1, b : 2 }", "name {\na := 1,\nb := 2\n}")
+        test_string(self, "name { a : 1, b : 2 }", "{\nname {\na := 1,\nb := 2\n}\n}")
         self.fail("T { a : 1, b }") # we need fieldname-value-pairs!
         #self.fail("name { }") # no field values, does not fail because it is parsed as 'program call' + 'block'
         #self.fail("name { a : 1 }") # using : instead of =
 
     def test_dot_access(self):
-        test_string(self, "let a = 0; a.b", "{\na.b\n}")
+        test_string(self, "a.b", "{\na.b\n}")
+        test_string(self, "b.c.d", "{\nb.c.d\n}")
+        test_string(self, "x[0].a", "{\nx[0].a\n}")
+        test_string(self, "x[0].a()", "{\nx[0].a()\n}")
+        test_string(self, "x[0].a().b", "{\nx[0].a().b\n}")
         self.fail("let a = 0; a.0") # missing identifier for dot access
+        #self.fail("a.b") # missing identifier for dot access
         
     def fail(self, code):
         try:
@@ -156,6 +161,9 @@ def test_string(test_class, sourcecode, expectedStr):
     test_class.assertNotEqual(None, program, "program shouldn't be None")
     program_string = str(program)
     test_class.assertEqual(program_string, expectedStr, "Expected \"" + expectedStr + "\", but got \" " + program_string + "\"")
+    # TODO It's super weird but at my machine, the assertion above does not
+    # work anymore.
+    test_class.assertTrue(program_string == expectedStr, "Expected \"" + expectedStr + "\", but got \" " + program_string + "\"")
 
 def createParser(sourcecode):
     return parser.Parser(lexer.Lexer(sourcecode, "test_parser.py input"))
