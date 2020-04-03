@@ -111,6 +111,14 @@ let c = 31415
 (a=(b=(c=15)))
 }""")
 
+    def test_import(self):
+        # Little bit hacky: Determine how the module path will probably be resolved
+        import os 
+        self.check("import \"module.bon\" as mymod", "{"+f"\nimport {os.getcwd()}/module.bon as mymod\n"+"}")
+        self.check("import \"/usr/lib/module.bon\" as mymod", "{\nimport /usr/lib/module.bon as mymod\n}")
+        self.fail("import \"module.bon\"")
+        self.fail("import notastring")
+        self.fail("import \"module.bon\" as 1 whichisnotanidentifier")
 
     def test_struct_definition(self):
         test_string(self, "struct mytype { foo : int, bar : float }", "{\nstruct mytype {\nbar : float,\nfoo : int\n}\n}")
@@ -137,6 +145,9 @@ let c = 31415
         test_string(self, "x[0].a().b", "{\nx[0].a().b\n}")
         self.fail("let a = 0; a.0") # missing identifier for dot access
         #self.fail("a.b") # missing identifier for dot access
+
+    def check(self, code, expected):
+        test_string(self, code, expected)
         
     def fail(self, code):
         try:

@@ -92,18 +92,18 @@ class Parser:
         toks = TokenList()
         if not toks.add(self.match(token.IMPORT)):
             raise Exception("Expected import statement.")
-        path = self.peek()
         if not toks.add(self.match(token.STRING)):
-            raise Exception("Expected module path as string.")
-        name = self.peek()
+            raise ParseException("Expected module path as string.")
+        path = self.peek(-1).lexeme
         if not toks.add(self.match(token.AS)):
-            raise Exception("Expected as")
+            raise ParseException("Expected as")
         if not toks.add(self.match(token.IDENTIFIER)):
-            raise Exception("Expected module alias name.")
+            raise ParseException("Expected module alias name.")
+        name = self.peek(-1).lexeme
         toks.add(self.match(token.SEMICOLON))
-        if not os.path.isabs(path.lexeme):
-            path = os.path.join(self.basepath, path.lexeme)
-        return ast.Import(toks, name.lexeme, path)
+        if not os.path.isabs(path):
+            path = os.path.join(self.basepath, path)
+        return ast.Import(toks, name, path)
 
     def parse_function_definition(self) -> ast.FunctionDefinition:
         toks = TokenList()
