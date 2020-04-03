@@ -179,6 +179,8 @@ class Eval:
             index = self.evaluate(node.rhs)
             lhs = self.evaluate(node.lhs)
             return lhs[index]
+        elif isinstance(node, ast.DotAccess):
+            return self.evaluate(node.lhs)[node.rhs]
         if isinstance(node, ast.FunctionCall):
             assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
             funcname = node.name.name

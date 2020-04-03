@@ -144,10 +144,11 @@ class TestEvaluator(unittest.TestCase):
         self.check("struct T { x : B } struct B { y : int } let a = T { x : B { y : 7 } }; a", "T { x : B { y : 7 } }")
 
     def test_dot_access(self):
-        return # TODO TBD
         self.check("struct T { x : int } T { x : 5 }.x", 5)
+        self.check("struct T { x : int } let a = T { x : 5 }; a.x", 5)
         self.check("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }.x", "B { y : 7 }")
-        self.check("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }.x.y", "7")
+        self.check("struct T { x : B } struct B { y : int } let t = T { x : B { y : 7 } }; t.x", "B { y : 7 }")
+        self.check("struct T { x : B } struct B { y : int } let t = T { x : B { y : 7 } }; t.x.y", "7")
 
     # Helper method to typecheck the given code chunk
     def typecheck(self, code):
