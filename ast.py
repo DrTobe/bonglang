@@ -61,7 +61,7 @@ def location_minmax(lhs : Location, rhs : Location) ->  Location:
         maxline, maxcol = lhs[3], max(lhs[4], rhs[4])
     return (lhs[0], minline, mincol, maxline, maxcol, True)
 
-class Program(BaseNode):
+class TranslationUnit(BaseNode):
     def __init__(self, statements : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):
         super().__init__([] if len(statements) else [token.Token(token.BONG, "", 0, 0, 0)], statements) # Prevent ast node without inner items
         self.statements = statements

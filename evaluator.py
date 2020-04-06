@@ -27,7 +27,7 @@ class Eval:
             self.functions.reg_and_set(bfuncname, bfunc[0])
 
     def evaluate(self, node):
-        if isinstance(node, ast.Program):
+        if isinstance(node, ast.TranslationUnit):
             # Register all functions in the environment before evaluating the
             # top-level-statements
             toplevel_statements = []

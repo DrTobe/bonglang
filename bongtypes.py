@@ -101,6 +101,16 @@ class TypeList(FlatList):
 	def __str__(self):
 		return "TypeList [" + ", ".join(map(str,self.elements)) + "]"
 
+class Module(BaseType):
+	def __init__(self, path : str):
+		self.path = path
+	def sametype(self, other):
+		if type(other)!=Module:
+			return False
+		return self.path == other.path
+	def __str__(self):
+		return f"Module ({self.path})"
+
 # Type that specifies types. For example, the identifiers 'int', 'str'
 # and 'float' will be of that type, or identifiers that are names of structs.
 # The 'value_type' field in this class will be of the same type as the values of

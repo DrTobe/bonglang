@@ -2,6 +2,7 @@ import ast
 import symbol_table
 import bongtypes
 from bongtypes import TypeList, BongtypeException
+import lexer, parser
 
 import typing
 from enum import Enum
@@ -17,7 +18,7 @@ class TypeChecker:
     def __init__(self):
         pass
 
-    def checkprogram(self, program : ast.Program) -> bool:
+    def checkprogram(self, program : ast.TranslationUnit) -> bool:
         try:
             self.checkprogram_uncaught(program)
         except TypecheckException as e:
@@ -56,7 +57,7 @@ class TypeChecker:
     # If you want to try out the insane approach, just insert
     # resolve_type() and resolve_function_interface() at the
     # appropriate places when check()ing the ast.
-    def checkprogram_uncaught(self, program : ast.Program):
+    def checkprogram_uncaught(self, program : ast.TranslationUnit):
         # DEBUG
         #print(program.symbol_table)
         #print(program)
@@ -73,7 +74,10 @@ class TypeChecker:
                 toplevel_statements.append(statement) # function bodies have to be typechecked, too
             else:
                 toplevel_statements.append(statement)
-        # Resolve types first
+        # Resolve module imports first
+        self.modules : typing.Dict[str, ast.TranslationUnit] = {}
+        self.parse_imports(program)
+        # Then resolve types
         for typename, struct_def in self.struct_definitions.items():
             self.resolve_type(bongtypes.BongtypeIdentifier(typename, 0), struct_def)
         # Resolve function interfaces
@@ -88,6 +92,30 @@ class TypeChecker:
                 expect = bongtypes.TypeList([bongtypes.Integer()])
                 if not res.sametype(expect):
                     raise TypecheckException("Return type of program does not evaluate to int.", stmt)
+
+    def parse_imports(self, parent_unit : ast.TranslationUnit):
+        for imp_stmt in parent_unit.statements:
+            if not isinstance(imp_stmt, ast.Import):
+                continue
+            if imp_stmt.path not in self.modules:
+                # Parse
+                # TODO this should be encapsulated more nicely. Currently, same code
+                # as in main.py
+                try:
+                    with open(imp_stmt.path) as f:
+                        code = f.read()
+                except Exception as e:
+                    raise TypecheckException(f"Importing {imp_stmt.path} impossible:"
+                            f" '{e}'", imp_stmt)
+                l = lexer.Lexer(code, imp_stmt.path)
+                p = parser.Parser(l)
+                child_unit = p.compile()
+                # add2modmap
+                self.modules[imp_stmt.path] = child_unit
+                # Recurse
+                self.parse_imports(child_unit)
+            # Add to symbol table
+            parent_unit.symbol_table[imp_stmt.name].typ = bongtypes.Module(imp_stmt.path)
 
     # Resolve a given BongtypeIdentifier to an actual type. For custom types,
     # this method will not return the bongtypes.Typedef, but the value type instead,
@@ -133,18 +161,25 @@ class TypeChecker:
         self.symbol_table[function.name].typ = bongtypes.Function(parameters, returns)
 
     def is_writable(self, node : ast.BaseNode):
+        # Identifiers can describe modules, function names, types, variables. Only variables
+        # are writable and only those will be as ValueTypes in the symbol table so this is
+        # how we can determine the writablitiy of this node.
         if isinstance(node, ast.Identifier):
-            return True # TODO Check symbol table (could be function name, module name, typedef)
+            return isinstance(self.symbol_table[node.name].typ, bongtypes.ValueType)
+        # IndexAccess and DotAccess are writable whenever the lhs is writable, e.g.
+        # foo().bar not writable
+        # foo.bar[0] writable if foo is a writable variable
+        # foo.bar()[0].baz not writable because function call's result is not writable
+        # mod.foo not writable if mod is a module, then mod.foo is a type
         elif isinstance(node, ast.IndexAccess):
-            return True # Should be safe
+            return self.is_writable(node.lhs)
         elif isinstance(node, ast.DotAccess):
-            return True # TODO evaluate and check symbol table (could be function name)
+            return self.is_writable(node.lhs)
         elif isinstance(node, ast.ExpressionList):
-            ok = True
             for n in node.inner_nodes:
                 if not self.is_writable(n):
-                    ok = False
-            return ok
+                    return False
+            return True
         # Everything else shouldn't be writable (function calls, blocks, ...)
         else:
             return False

@@ -26,7 +26,7 @@ class Parser:
             if not self.symbol_table.exists(btypename): # Re-using
                 self.symbol_table.register(btypename, bongtypes.Typedef(btype()))
 
-    def compile(self) -> ast.Program:
+    def compile(self) -> ast.TranslationUnit:
         try:
             return self.compile_uncaught()
         except ParseException as e:
@@ -36,13 +36,13 @@ class Parser:
             else:
                 lexeme = t.type
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
-            return ast.Program([], self.symbol_table)
+            return ast.TranslationUnit([], self.symbol_table)
     
-    def compile_uncaught(self) -> ast.Program:
+    def compile_uncaught(self) -> ast.TranslationUnit:
         statements : typing.List[ast.BaseNode] = []
         while self.peek().type != token.EOF:
             statements.append(self.top_level_stmt())
-        return ast.Program(statements, self.symbol_table)
+        return ast.TranslationUnit(statements, self.symbol_table)
 
     def top_level_stmt(self) -> ast.BaseNode:
         if self.peek().type == token.IMPORT:
@@ -103,6 +103,7 @@ class Parser:
         toks.add(self.match(token.SEMICOLON))
         if not os.path.isabs(path):
             path = os.path.join(self.basepath, path)
+        self.symbol_table.register(name, bongtypes.UnknownType())
         return ast.Import(toks, name, path)
 
     def parse_function_definition(self) -> ast.FunctionDefinition:
