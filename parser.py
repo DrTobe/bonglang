@@ -7,6 +7,7 @@ import bongtypes
 import typing
 import os
 import bong_builtins
+import collections
 
 class Parser:
     def __init__(self, lexer, symtable=None, basepath=None):
@@ -36,21 +37,34 @@ class Parser:
             else:
                 lexeme = t.type
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
-            return ast.TranslationUnit([], self.symbol_table)
+            return ast.TranslationUnit([], collections.OrderedDict(), [], [], self.symbol_table)
     
     def compile_uncaught(self) -> ast.TranslationUnit:
+        imp_stmts : typing.List[ast.Import] = []
+        struct_stmts : collections.OrderedDict[str, ast.StructDefinition] = collections.OrderedDict()
+        func_stmts : typing.List[ast.FunctionDefinition] = []
         statements : typing.List[ast.BaseNode] = []
         while self.peek().type != token.EOF:
-            statements.append(self.top_level_stmt())
-        return ast.TranslationUnit(statements, self.symbol_table)
+            stmt = self.top_level_stmt()
+            if isinstance(stmt, ast.Import):
+                imp_stmts.append(stmt)
+            elif isinstance(stmt, ast.StructDefinition):
+                if stmt.name in struct_stmts:
+                    raise Exception("Struct Definition with same name generated twice.")
+                struct_stmts[stmt.name] = stmt
+            elif isinstance(stmt, ast.FunctionDefinition):
+                func_stmts.append(stmt)
+            else:
+                statements.append(stmt)
+        return ast.TranslationUnit(imp_stmts, struct_stmts, func_stmts, statements, self.symbol_table)
 
     def top_level_stmt(self) -> ast.BaseNode:
         if self.peek().type == token.IMPORT:
             return self.parse_import()
-        if self.peek().type == token.FUNC:
-            return self.parse_function_definition()
         if self.peek().type == token.STRUCT:
             return self.parse_struct_definition()
+        if self.peek().type == token.FUNC:
+            return self.parse_function_definition()
         return self.stmt()
 
     def stmt(self) -> ast.BaseNode:

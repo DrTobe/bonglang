@@ -30,18 +30,11 @@ class Eval:
         if isinstance(node, ast.TranslationUnit):
             # Register all functions in the environment before evaluating the
             # top-level-statements
-            toplevel_statements = []
-            for statement in node.statements:
-                if isinstance(statement, ast.StructDefinition):
-                    pass
-                elif isinstance(statement, ast.FunctionDefinition):
-                    func = statement
-                    self.functions.reg_and_set(func.name, func)
-                else:
-                    toplevel_statements.append(statement)
+            for func in node.function_definitions:
+                self.functions.reg_and_set(func.name, func)
             res = None
             # Afterwards, run all non-function statements
-            for stmt in toplevel_statements:
+            for stmt in node.statements:
                 res = self.evaluate(stmt)
                 if isinstance(res, ReturnValue):
                     # ast.Program is the top-level-node, return means exit then

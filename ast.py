@@ -8,6 +8,7 @@ from flatlist import FlatList
 import functools # reduce
 import itertools # chain
 import sys
+import collections
 
 # A "location" of tokens/nodes is defined as
 # tuple: filename, line from, col from, line to, col to, valid-location.
@@ -62,9 +63,22 @@ def location_minmax(lhs : Location, rhs : Location) ->  Location:
     return (lhs[0], minline, mincol, maxline, maxcol, True)
 
 class TranslationUnit(BaseNode):
-    def __init__(self, statements : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):
-        super().__init__([] if len(statements) else [token.Token(token.BONG, "", 0, 0, 0)], statements) # Prevent ast node without inner items
+    def __init__(self,
+            import_statements : typing.List[Import],
+            struct_definitions : collections.OrderedDict[str, StructDefinition],
+            function_definitions : typing.List[FunctionDefinition],
+            statements : typing.List[BaseNode],
+            symbol_table : symbol_table.SymbolTable):
+        stmts : typing.List[BaseNode] = []
+        stmts.extend(statements)
+        stmts.extend(import_statements)
+        stmts.extend(struct_definitions.values())
+        stmts.extend(function_definitions)
+        super().__init__([], stmts)
         self.statements = statements
+        self.import_statements = import_statements
+        self.struct_definitions = struct_definitions
+        self.function_definitions = function_definitions
         self.symbol_table = symbol_table
     def __str__(self):
         """ Alternative string representation that contains the symbol table, too
@@ -78,7 +92,7 @@ class TranslationUnit(BaseNode):
         return program
         """
         stmts = []
-        for stmt in self.statements:
+        for stmt in (self.import_statements + list(self.struct_definitions.values()) + self.function_definitions + self.statements):
             stmts.append(str(stmt))
         return "{\n" + "\n".join(stmts) + "\n}"
 

@@ -62,29 +62,20 @@ class TypeChecker:
         #print(program.symbol_table)
         #print(program)
         self.symbol_table = program.symbol_table
-        # First, separate struct- and function-definitions and other stuff
-        self.struct_definitions : typing.Dict[str, ast.StructDefinition] = {}
-        self.func_definitions : typing.Dict[str, ast.FunctionDefinition] = {}
-        toplevel_statements : typing.List[ast.BaseNode] = []
-        for statement in program.statements:
-            if isinstance(statement, ast.StructDefinition):
-                self.struct_definitions[statement.name] = statement
-            elif isinstance(statement, ast.FunctionDefinition):
-                self.func_definitions[statement.name] = statement
-                toplevel_statements.append(statement) # function bodies have to be typechecked, too
-            else:
-                toplevel_statements.append(statement)
+        self.program = program # TODO most probably necessary?
         # Resolve module imports first
         self.modules : typing.Dict[str, ast.TranslationUnit] = {}
         self.parse_imports(program)
         # Then resolve types
-        for typename, struct_def in self.struct_definitions.items():
+        for typename, struct_def in self.program.struct_definitions.items():
             self.resolve_type(bongtypes.BongtypeIdentifier(typename, 0), struct_def)
         # Resolve function interfaces
-        for funcname in self.func_definitions:
-            self.resolve_function_interface(self.func_definitions[funcname])
+        for func_definition in self.program.function_definitions:
+            self.resolve_function_interface(func_definition)
         # Typecheck the rest (also assigning variable types)
-        for stmt in toplevel_statements:
+        for func in program.function_definitions:
+            res, turn = self.check(func)
+        for stmt in program.statements:
             res, turn = self.check(stmt)
             # If there is a possible return value,
             if turn != Return.NO:
@@ -94,9 +85,7 @@ class TypeChecker:
                     raise TypecheckException("Return type of program does not evaluate to int.", stmt)
 
     def parse_imports(self, parent_unit : ast.TranslationUnit):
-        for imp_stmt in parent_unit.statements:
-            if not isinstance(imp_stmt, ast.Import):
-                continue
+        for imp_stmt in parent_unit.import_statements:
             if imp_stmt.path not in self.modules:
                 # Parse
                 # TODO this should be encapsulated more nicely. Currently, same code
@@ -138,10 +127,10 @@ class TypeChecker:
                         " resolved.", node)
             return self.symbol_table[identifier.typename].typ.value_type # unpack
         # Everything else (structs) will be determined by determining the inner types
-        if not identifier.typename in self.struct_definitions:
+        if not identifier.typename in self.program.struct_definitions:
             raise TypecheckException(f"Type {identifier.typename} can not be"
                     " resolved.", node)
-        struct_def = self.struct_definitions[identifier.typename]
+        struct_def = self.program.struct_definitions[identifier.typename]
         fields : typing.Dict[str, bongtypes.ValueType] = {}
         for name, type_identifier in struct_def.fields.items():
             fields[name] = self.resolve_type(type_identifier, struct_def)
