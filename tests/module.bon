@@ -1,0 +1,6 @@
+func modulefunc() : int {
+	return 42
+}
+struct moduletype {
+	a : int,
+	b : int }

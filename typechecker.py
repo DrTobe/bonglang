@@ -75,8 +75,16 @@ class TypeChecker:
         for unit in self.modules.values():
             self.resolve_function_interfaces(unit)
         # Typecheck the rest (also assigning variable types)
+        # Functions in modules
+        for unit in self.modules.values():
+            self.symbol_table = unit.symbol_table
+            for func in unit.function_definitions:
+                res, turn = self.check(func)
+        # Functions in main_module / program
+        self.symbol_table = program.symbol_table
         for func in program.function_definitions:
             res, turn = self.check(func)
+        # Statements in main_module / program
         for stmt in program.statements:
             res, turn = self.check(stmt)
             # If there is a possible return value,
@@ -110,7 +118,7 @@ class TypeChecker:
 
     def resolve_types(self, unit : ast.TranslationUnit):
         for typename, struct_def in unit.struct_definitions.items():
-            self.resolve_type(ast.BongtypeIdentifier(typename, 0), unit, struct_def)
+            self.resolve_type(ast.BongtypeIdentifier([typename], 0), unit, struct_def)
 
     # Resolve a given BongtypeIdentifier to an actual type. For custom types,
     # this method will not return the bongtypes.Typedef, but the value type instead,
@@ -122,26 +130,41 @@ class TypeChecker:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
             return bongtypes.Array(self.resolve_type(ast.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), unit, node))
+        # If a module name is given, propagate to the module
+        if len(identifier.typename) > 1:
+            modulename = identifier.typename[0]
+            remaining_typename = identifier.typename[1:]
+            if (not modulename in unit.symbol_table.names
+                    or not isinstance(unit.symbol_table[modulename].typ, bongtypes.Module)
+                    or not unit.symbol_table[modulename].typ.path in self.modules):
+                raise TypecheckException(f"Module {modulename} can not be"
+                        " resolved.", node)
+            modulepath = unit.symbol_table[modulename].typ.path
+            child_unit = self.modules[modulepath]
+            remaining_typeidentifier = ast.BongtypeIdentifier(remaining_typename, 0)
+            return self.resolve_type(remaining_typeidentifier, child_unit, node)
+        # Otherwise, the typename is the only item in the list
+        typename = identifier.typename[0]
         # Check missing type
-        if not identifier.typename in unit.symbol_table.names:
-            raise TypecheckException(f"Type {identifier.typename} can not be"
+        if not typename in unit.symbol_table.names:
+            raise TypecheckException(f"Type {typename} can not be"
                     " resolved.", node)
         # Already known types can be returned
-        if not unit.symbol_table[identifier.typename].typ.sametype(bongtypes.UnknownType()):
-            if not isinstance(unit.symbol_table[identifier.typename].typ, bongtypes.Typedef):
-                raise TypecheckException(f"Type {identifier.typename} can not be"
+        if not unit.symbol_table[typename].typ.sametype(bongtypes.UnknownType()):
+            if not isinstance(unit.symbol_table[typename].typ, bongtypes.Typedef):
+                raise TypecheckException(f"Type {typename} can not be"
                         " resolved.", node)
-            return unit.symbol_table[identifier.typename].typ.value_type # unpack
+            return unit.symbol_table[typename].typ.value_type # unpack
         # Everything else (structs) will be determined by determining the inner types
-        if not identifier.typename in unit.struct_definitions:
-            raise TypecheckException(f"Type {identifier.typename} can not be"
+        if not typename in unit.struct_definitions:
+            raise TypecheckException(f"Type {typename} can not be"
                     " resolved.", node)
-        struct_def = unit.struct_definitions[identifier.typename]
+        struct_def = unit.struct_definitions[typename]
         fields : typing.Dict[str, bongtypes.ValueType] = {}
         for name, type_identifier in struct_def.fields.items():
             fields[name] = self.resolve_type(type_identifier, unit, struct_def)
-        value_type = bongtypes.Struct(identifier.typename, fields)
-        unit.symbol_table[identifier.typename].typ = bongtypes.Typedef(value_type)
+        value_type = bongtypes.Struct(typename, fields)
+        unit.symbol_table[typename].typ = bongtypes.Typedef(value_type)
         return value_type
 
     def resolve_function_interfaces(self, unit : ast.TranslationUnit):

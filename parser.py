@@ -234,8 +234,12 @@ class Parser:
                 raise ParseException("Expected closing bracket ']' in type specification.")
             num_array_levels += 1
         if not self.match(token.IDENTIFIER):
-            raise ParseException("Expected identifier as type.")
-        typename = self.peek(-1).lexeme
+            raise ParseException("Expected identifier as module or type.")
+        typename = [self.peek(-1).lexeme]
+        while self.match(token.DOT):
+            if not self.match(token.IDENTIFIER):
+                raise ParseException("Expected identifier as module or type.")
+            typename.append(self.peek(-1).lexeme)
         return ast.BongtypeIdentifier(typename, num_array_levels)
 
     def return_stmt(self) -> ast.Return:

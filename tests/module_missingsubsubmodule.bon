@@ -1,0 +1,1 @@
+import "module_missingsubmodule.bon" as mod

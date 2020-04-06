@@ -1,0 +1,4 @@
+func k() {
+	let a : X = X {
+		x : 5 }
+}

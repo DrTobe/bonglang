@@ -209,14 +209,17 @@ class Print(BaseNode):
         return "print "+str(self.expr)+";"
 
 class BongtypeIdentifier:
-    def __init__(self, typename : str, num_array_levels : int = 0):
+    # For the typename parameter: The first N-1 list items are module names,
+    # the last list item is the typename in the sub-sub-sub-module. For a
+    # typename in the current module, the list just has length 1.
+    def __init__(self, typename : typing.List[str], num_array_levels : int = 0):
         self.typename = typename
         self.num_array_levels = num_array_levels
     def __str__(self):
         #s = "BongtypeIdentifier ("
         s = ""
         s += "[]" * self.num_array_levels
-        s += self.typename
+        s += ".".join(self.typename)
         # s += ")"
         return s
 

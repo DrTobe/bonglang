@@ -146,6 +146,15 @@ class TestTypechecker(unittest.TestCase):
         self.check("struct T { x : int } struct U { y : int } let a = T { x : 5 }; a = U { y : 7 }") # type does not match
         self.check("struct T { x : int } struct U { y : float } let a = T { x : 5 }; let b = U { y : 7.0 }; a.x = b.y") # type does not match
 
+    def test_import(self):
+        self.check("import \"nonexistentfile.bon\" as mod")
+        self.check("import \"tests/module_buggy.bon\" as mod")
+        self.check("import \"tests/module_missingtype.bon\" as mod")
+        self.check("import \"tests/module_missingsubmodule.bon\" as mod")
+        self.check("import \"tests/module_missingsubsubmodule.bon\" as mod")
+        #self.check("import \"tests/module.bon\" as mod; mod.missingfunc();")
+        #self.check("import \"tests/module.bon\" as mod; let a : mod.missingtype = mod.missingtype { x : 5 };")
+
     def check(self, code):
         worked = typecheck(code)
         self.assertFalse(worked, "Expected typechecker to fail.")

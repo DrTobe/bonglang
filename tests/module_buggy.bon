@@ -1,0 +1,8 @@
+func a () {
+}
+func b () {
+	// The module should be parsed successfully but it should not be typechecked
+	let c : str = 5
+}
+struct C {
+	x : int }
