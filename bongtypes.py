@@ -332,21 +332,6 @@ basic_types = {
 		"str": String,
 }
 
-# TODO Where and how does this class and the following function belong?
-# Parser needs BongtypeIdentifier but BongtypeIdentifier.get_bongtype
-# needs somehow access to self-defined types (not supported yet, 2020-03-05).
-class BongtypeIdentifier:
-	def __init__(self, typename : str, num_array_levels : int = 0):
-		self.typename = typename
-		self.num_array_levels = num_array_levels
-	def __str__(self):
-		#s = "BongtypeIdentifier ("
-		s = ""
-		s += "[]" * self.num_array_levels
-		s += self.typename
-		# s += ")"
-		return s
-
 class BongtypeException(Exception):
 	def __init__(self, msg : str):
 		super().__init__(self, msg)

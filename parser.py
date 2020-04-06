@@ -143,7 +143,7 @@ class Parser:
             if not toks.add(self.match(token.RPAREN)):
                 raise ParseException("Expected ) to end the parameter list.")
             # Return types
-            return_types : typing.List[bongtypes.BongtypeIdentifier] = []
+            return_types : typing.List[ast.BongtypeIdentifier] = []
             if toks.add(self.match(token.COLON)):
                 self.check_eof("Return type list expected.")
                 return_types.append(self.parse_type())
@@ -189,7 +189,7 @@ class Parser:
         field_names, field_types = self.parse_parameters()
         if len(field_names) == 0:
             raise ParseException(f"Struct {name} is empty.")
-        fields : typing.Dict[str, bongtypes.BongtypeIdentifier] = {}
+        fields : typing.Dict[str, ast.BongtypeIdentifier] = {}
         for field_name, field_type in zip(field_names, field_types):
             if field_name in fields:
                 raise ParseException(f"Field '{field_name}' found multiple times"
@@ -203,9 +203,9 @@ class Parser:
         return ast.StructDefinition(toks, name, fields)
 
     # Used by parse_function_definition() and parse_struct_definition()
-    def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[bongtypes.BongtypeIdentifier]]:
+    def parse_parameters(self) -> typing.Tuple[typing.List[str],typing.List[ast.BongtypeIdentifier]]:
         parameter_names : typing.List[str] = []
-        parameter_types : typing.List[bongtypes.BongtypeIdentifier] = []
+        parameter_types : typing.List[ast.BongtypeIdentifier] = []
         self.check_eof("Parameter list expected")
         if self.peek().type != token.IDENTIFIER:
             return (parameter_names, parameter_types)
@@ -217,7 +217,7 @@ class Parser:
             parameter_names.append(name)
             parameter_types.append(typ)
         return (parameter_names, parameter_types)
-    def parse_parameter(self) -> typing.Tuple[str,bongtypes.BongtypeIdentifier]:
+    def parse_parameter(self) -> typing.Tuple[str,ast.BongtypeIdentifier]:
         self.check_eof("Another parameter expected")
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected identifier as parameter name.")
@@ -227,7 +227,7 @@ class Parser:
         typ = self.parse_type()
         return (name, typ)
     # Used by function definition and let statement
-    def parse_type(self) -> bongtypes.BongtypeIdentifier:
+    def parse_type(self) -> ast.BongtypeIdentifier:
         num_array_levels = 0
         while self.match(token.LBRACKET):
             if not self.match(token.RBRACKET):
@@ -236,7 +236,7 @@ class Parser:
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected identifier as type.")
         typename = self.peek(-1).lexeme
-        return bongtypes.BongtypeIdentifier(typename, num_array_levels)
+        return ast.BongtypeIdentifier(typename, num_array_levels)
 
     def return_stmt(self) -> ast.Return:
         toks = TokenList()
@@ -270,7 +270,7 @@ class Parser:
         toks.add(self.match(token.SEMICOLON))
         return ast.Let(toks, var_names, var_types, expr)
     # splitted so that this part can be reused for pipelines
-    def let_lhs(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[bongtypes.BongtypeIdentifier]]]:
+    def let_lhs(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[ast.BongtypeIdentifier]]]:
         if not self.match(token.LET):
             raise Exception("Expected let statement.")
         # Parse variable names and types
@@ -295,9 +295,9 @@ class Parser:
     # TODO These functions are extremely similar to
     # parse_parameters() / parse_parameter() / parse_returntype().
     # Should we unify those functions?
-    def parse_let_variables(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[bongtypes.BongtypeIdentifier]]]:
+    def parse_let_variables(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[ast.BongtypeIdentifier]]]:
         variable_names : typing.List[str] = []
-        variable_types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]] = []
+        variable_types : typing.List[typing.Optional[ast.BongtypeIdentifier]] = []
         name, typ = self.parse_let_variable()
         variable_names.append(name)
         variable_types.append(typ)
@@ -306,12 +306,12 @@ class Parser:
             variable_names.append(name)
             variable_types.append(typ)
         return (variable_names, variable_types)
-    def parse_let_variable(self) -> typing.Tuple[str, typing.Optional[bongtypes.BongtypeIdentifier]]:
+    def parse_let_variable(self) -> typing.Tuple[str, typing.Optional[ast.BongtypeIdentifier]]:
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected identifier as variable name.")
         name = self.peek(-1).lexeme
         if self.match(token.COLON):
-            typ : typing.Optional[bongtypes.BongtypeIdentifier] = self.parse_type()
+            typ : typing.Optional[ast.BongtypeIdentifier] = self.parse_type()
         else:
             typ = None
         return (name, typ)

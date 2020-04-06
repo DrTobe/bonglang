@@ -110,7 +110,7 @@ class TypeChecker:
 
     def resolve_types(self, unit : ast.TranslationUnit):
         for typename, struct_def in unit.struct_definitions.items():
-            self.resolve_type(bongtypes.BongtypeIdentifier(typename, 0), unit, struct_def)
+            self.resolve_type(ast.BongtypeIdentifier(typename, 0), unit, struct_def)
 
     # Resolve a given BongtypeIdentifier to an actual type. For custom types,
     # this method will not return the bongtypes.Typedef, but the value type instead,
@@ -118,10 +118,10 @@ class TypeChecker:
     # It can crash whenever an inner type in a struct, a type hint in a function
     # interface or a type hint in a let statement uses a typename that is not defined.
     # TODO Prevent recursion
-    def resolve_type(self, identifier : bongtypes.BongtypeIdentifier, unit : ast.TranslationUnit, node : ast.BaseNode) -> bongtypes.ValueType:
+    def resolve_type(self, identifier : ast.BongtypeIdentifier, unit : ast.TranslationUnit, node : ast.BaseNode) -> bongtypes.ValueType:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
-            return bongtypes.Array(self.resolve_type(bongtypes.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), unit, node))
+            return bongtypes.Array(self.resolve_type(ast.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), unit, node))
         # Check missing type
         if not identifier.typename in unit.symbol_table.names:
             raise TypecheckException(f"Type {identifier.typename} can not be"
@@ -382,7 +382,7 @@ class TypeChecker:
                         if len(names) > 2 or len(names)==0:
                             raise TypecheckException("The output of a pipeline can only be written to one or two string variables, let with {} variables  was found instead.".format(len(names)), assignto)
                         for name, type_identifier in zip(assignto.names, assignto.types):
-                            if isinstance(type_identifier, bongtypes.BongtypeIdentifier):
+                            if isinstance(type_identifier, ast.BongtypeIdentifier):
                                 typ = self.resolve_type(type_identifier, self.program, assignto)
                                 if not typ.sametype(bongtypes.String()):
                                     raise TypecheckException("The output of a pipeline"
@@ -497,7 +497,7 @@ class TypeChecker:
                 if len(node.names) != len(results):
                     raise TypecheckException("Number of expressions on rhs of let statement does not match the number of variables.", node)
                 for name, type_identifier, result in zip(node.names, node.types, results):
-                    if isinstance(type_identifier, bongtypes.BongtypeIdentifier):
+                    if isinstance(type_identifier, ast.BongtypeIdentifier):
                         typ = self.resolve_type(type_identifier, self.program, node)
                         typ = merge_types(typ, result, node, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, typ, result))
                         self.symbol_table[name].typ = typ

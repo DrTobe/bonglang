@@ -3,7 +3,6 @@ import token_def as token
 from token_def import Token
 import symbol_table
 import typing
-import bongtypes
 from flatlist import FlatList
 import functools # reduce
 import itertools # chain
@@ -209,8 +208,20 @@ class Print(BaseNode):
     def __str__(self):
         return "print "+str(self.expr)+";"
 
+class BongtypeIdentifier:
+    def __init__(self, typename : str, num_array_levels : int = 0):
+        self.typename = typename
+        self.num_array_levels = num_array_levels
+    def __str__(self):
+        #s = "BongtypeIdentifier ("
+        s = ""
+        s += "[]" * self.num_array_levels
+        s += self.typename
+        # s += ")"
+        return s
+
 class Let(BaseNode):
-    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]], expr : typing.Union[ExpressionList, AssignOp]): # rhs = Expressions or Assignment
+    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[BongtypeIdentifier]], expr : typing.Union[ExpressionList, AssignOp]): # rhs = Expressions or Assignment
         super().__init__(tokens, [expr])
 
         self.names = names
@@ -262,7 +273,7 @@ class Pipeline(BaseNode):
         return pipeline
 
 class PipelineLet(BaseNode):
-    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[bongtypes.BongtypeIdentifier]]):
+    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[BongtypeIdentifier]]):
         super().__init__(tokens, [])
         self.names = names
         self.types = types
@@ -284,7 +295,7 @@ class SysCall(BaseNode):
         return "(call " + " ".join(self.args) + ")"
 
 class FunctionDefinition(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name : str, parameter_names : typing.List[str], parameter_types : typing.List[bongtypes.BongtypeIdentifier], return_types : typing.List[bongtypes.BongtypeIdentifier], body : Block, symbol_table : symbol_table.SymbolTable):
+    def __init__(self, tokens : typing.List[Token], name : str, parameter_names : typing.List[str], parameter_types : typing.List[BongtypeIdentifier], return_types : typing.List[BongtypeIdentifier], body : Block, symbol_table : symbol_table.SymbolTable):
         super().__init__(tokens, [body])
         self.name = name
         self.parameter_names = parameter_names
@@ -305,7 +316,7 @@ class FunctionDefinition(BaseNode):
         return result
 
 class StructDefinition(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name : str, fields : typing.Dict[str, bongtypes.BongtypeIdentifier]):
+    def __init__(self, tokens : typing.List[Token], name : str, fields : typing.Dict[str, BongtypeIdentifier]):
         super().__init__(tokens, [])
         self.name = name
         self.fields = fields
