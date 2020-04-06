@@ -67,11 +67,13 @@ class TypeChecker:
         self.modules : typing.Dict[str, ast.TranslationUnit] = {}
         self.parse_imports(program)
         # Then resolve types
-        for typename, struct_def in self.program.struct_definitions.items():
-            self.resolve_type(bongtypes.BongtypeIdentifier(typename, 0), struct_def)
+        self.resolve_types(program)
+        for unit in self.modules.values():
+            self.resolve_types(unit)
         # Resolve function interfaces
-        for func_definition in self.program.function_definitions:
-            self.resolve_function_interface(func_definition)
+        self.resolve_function_interfaces(program)
+        for unit in self.modules.values():
+            self.resolve_function_interfaces(unit)
         # Typecheck the rest (also assigning variable types)
         for func in program.function_definitions:
             res, turn = self.check(func)
@@ -106,48 +108,56 @@ class TypeChecker:
             # Add to symbol table
             parent_unit.symbol_table[imp_stmt.name].typ = bongtypes.Module(imp_stmt.path)
 
+    def resolve_types(self, unit : ast.TranslationUnit):
+        for typename, struct_def in unit.struct_definitions.items():
+            self.resolve_type(bongtypes.BongtypeIdentifier(typename, 0), unit, struct_def)
+
     # Resolve a given BongtypeIdentifier to an actual type. For custom types,
     # this method will not return the bongtypes.Typedef, but the value type instead,
     # i.e. the Typedefs will be unpacked.
     # It can crash whenever an inner type in a struct, a type hint in a function
     # interface or a type hint in a let statement uses a typename that is not defined.
     # TODO Prevent recursion
-    def resolve_type(self, identifier : bongtypes.BongtypeIdentifier, node : ast.BaseNode) -> bongtypes.ValueType:
+    def resolve_type(self, identifier : bongtypes.BongtypeIdentifier, unit : ast.TranslationUnit, node : ast.BaseNode) -> bongtypes.ValueType:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
-            return bongtypes.Array(self.resolve_type(bongtypes.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), node))
+            return bongtypes.Array(self.resolve_type(bongtypes.BongtypeIdentifier(identifier.typename, identifier.num_array_levels-1), unit, node))
         # Check missing type
-        if not identifier.typename in self.symbol_table.names:
+        if not identifier.typename in unit.symbol_table.names:
             raise TypecheckException(f"Type {identifier.typename} can not be"
                     " resolved.", node)
         # Already known types can be returned
-        if not self.symbol_table[identifier.typename].typ.sametype(bongtypes.UnknownType()):
-            if not isinstance(self.symbol_table[identifier.typename].typ, bongtypes.Typedef):
+        if not unit.symbol_table[identifier.typename].typ.sametype(bongtypes.UnknownType()):
+            if not isinstance(unit.symbol_table[identifier.typename].typ, bongtypes.Typedef):
                 raise TypecheckException(f"Type {identifier.typename} can not be"
                         " resolved.", node)
-            return self.symbol_table[identifier.typename].typ.value_type # unpack
+            return unit.symbol_table[identifier.typename].typ.value_type # unpack
         # Everything else (structs) will be determined by determining the inner types
-        if not identifier.typename in self.program.struct_definitions:
+        if not identifier.typename in unit.struct_definitions:
             raise TypecheckException(f"Type {identifier.typename} can not be"
                     " resolved.", node)
-        struct_def = self.program.struct_definitions[identifier.typename]
+        struct_def = unit.struct_definitions[identifier.typename]
         fields : typing.Dict[str, bongtypes.ValueType] = {}
         for name, type_identifier in struct_def.fields.items():
-            fields[name] = self.resolve_type(type_identifier, struct_def)
+            fields[name] = self.resolve_type(type_identifier, unit, struct_def)
         value_type = bongtypes.Struct(identifier.typename, fields)
-        self.symbol_table[identifier.typename].typ = bongtypes.Typedef(value_type)
+        unit.symbol_table[identifier.typename].typ = bongtypes.Typedef(value_type)
         return value_type
+
+    def resolve_function_interfaces(self, unit : ast.TranslationUnit):
+        for func_definition in unit.function_definitions:
+            self.resolve_function_interface(func_definition, unit)
     
-    def resolve_function_interface(self, function : ast.FunctionDefinition):
+    def resolve_function_interface(self, function : ast.FunctionDefinition, unit : ast.TranslationUnit):
         parameters = bongtypes.TypeList([])
         returns = bongtypes.TypeList([])
         for param_name, param_type in zip(function.parameter_names, function.parameter_types):
-            typ = self.resolve_type(param_type, function)
+            typ = self.resolve_type(param_type, unit, function)
             parameters.append(typ)
             function.symbol_table[param_name].typ = typ
         for ret in function.return_types:
-            returns.append(self.resolve_type(ret, function))
-        self.symbol_table[function.name].typ = bongtypes.Function(parameters, returns)
+            returns.append(self.resolve_type(ret, unit, function))
+        unit.symbol_table[function.name].typ = bongtypes.Function(parameters, returns)
 
     def is_writable(self, node : ast.BaseNode):
         # Identifiers can describe modules, function names, types, variables. Only variables
@@ -373,7 +383,7 @@ class TypeChecker:
                             raise TypecheckException("The output of a pipeline can only be written to one or two string variables, let with {} variables  was found instead.".format(len(names)), assignto)
                         for name, type_identifier in zip(assignto.names, assignto.types):
                             if isinstance(type_identifier, bongtypes.BongtypeIdentifier):
-                                typ = self.resolve_type(type_identifier, assignto)
+                                typ = self.resolve_type(type_identifier, self.program, assignto)
                                 if not typ.sametype(bongtypes.String()):
                                     raise TypecheckException("The output of a pipeline"
                                         " can only be written to string variables, let"
@@ -488,7 +498,7 @@ class TypeChecker:
                     raise TypecheckException("Number of expressions on rhs of let statement does not match the number of variables.", node)
                 for name, type_identifier, result in zip(node.names, node.types, results):
                     if isinstance(type_identifier, bongtypes.BongtypeIdentifier):
-                        typ = self.resolve_type(type_identifier, node)
+                        typ = self.resolve_type(type_identifier, self.program, node)
                         typ = merge_types(typ, result, node, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, typ, result))
                         self.symbol_table[name].typ = typ
                     else:
