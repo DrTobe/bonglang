@@ -152,8 +152,8 @@ class TestTypechecker(unittest.TestCase):
         self.check("import \"tests/module_missingtype.bon\" as mod")
         self.check("import \"tests/module_missingsubmodule.bon\" as mod")
         self.check("import \"tests/module_missingsubsubmodule.bon\" as mod")
-        #self.check("import \"tests/module.bon\" as mod; mod.missingfunc();")
-        #self.check("import \"tests/module.bon\" as mod; let a : mod.missingtype = mod.missingtype { x : 5 };")
+        self.check("import \"tests/module.bon\" as mod; mod.missingfunc();")
+        self.check("import \"tests/module.bon\" as mod; let a : mod.missingtype = mod.missingtype { x : 5 };")
 
     def check(self, code):
         worked = typecheck(code)

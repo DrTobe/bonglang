@@ -461,6 +461,16 @@ class TypeChecker:
                 if node.rhs in lhs[0].fields:
                     value_type = lhs[0].fields[node.rhs]
                     return TypeList([value_type]), Return.NO
+            elif isinstance(lhs[0], bongtypes.Module): # module
+                modulepath = lhs[0].path
+                if not modulepath in self.modules:
+                    raise TypecheckException(f"Module {node.lhs} can not be"
+                            " resolved.", node)
+                module = self.modules[modulepath]
+                if not module.symbol_table.contains(node.rhs):
+                    raise TypecheckException(f"Name '{node.rhs}' not found in"
+                            " module '{node.lhs}' which resolved to '{lhs[0]}'.", node)
+                return module.symbol_table[rhs], Return.NO
             raise TypecheckException("DotAccess with unsupported type.", node.lhs)
         elif isinstance(node, ast.FunctionDefinition):
             # The function interface should already be completely in the symbol table.
@@ -490,13 +500,12 @@ class TypeChecker:
                 self.pop_symtable()
             return TypeList([]), Return.NO # FunctionDefinition itself returns nothing
         if isinstance(node, ast.FunctionCall):
-            assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
-            funcname = node.name.name
-            if not self.symbol_table.exists(funcname):
-                raise TypecheckException("Function '{}' not found.".format(funcname), node)
-            func = self.symbol_table[funcname].typ
+            funcs, turn = self.check(node.name)
+            if len(funcs)!=1:
+                raise TypecheckException(f"'{node.name}' does not resolve to a function.", node.name)
+            func = funcs[0]
             if type(func)!=bongtypes.Function and type(func)!=bongtypes.BuiltinFunction:
-                raise TypecheckException("'{}' is not a function.".format(funcname), node)
+                raise TypecheckException(f"'{node.name}' is not a function.", node)
             argtypes, turn = self.check(node.args)
             # Check builtin functions
             if isinstance(func, bongtypes.BuiltinFunction):
@@ -506,7 +515,7 @@ class TypeChecker:
                     raise TypecheckException(e.msg, node)
             # Otherwise, it is a bong function that has well-defined parameter types
             match_types(func.parameter_types, argtypes, node,
-                    (f"Function '{funcname}' expects parameters of type "
+                    (f"Function '{node.name}' expects parameters of type "
                     f"'{func.parameter_types}' but '{argtypes}' were given."))
             # If everything goes fine (function can be called), it returns
             # whatever the function declaration says \o/
@@ -551,14 +560,13 @@ class TypeChecker:
                 inner_type = merge_types(inner_type, typ, node)
             return TypeList([bongtypes.Array(inner_type)]), Return.NO
         elif isinstance(node, ast.StructValue):
-            assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
-            structname = node.name.name
-            if not self.symbol_table.exists(structname):
-                raise TypecheckException(f"Struct '{node.name}' not found.", node)
-            struct_type = self.symbol_table[structname].typ
+            struct_types, turn = self.check(node.name)
+            if len(struct_types)!=1:
+                raise TypecheckException(f"'{node.name}' does not resolve to a (single) struct.", node.name)
+            struct_type = struct_types[0]
             if (type(struct_type)!=bongtypes.Typedef
                     or type(struct_type.value_type)!=bongtypes.Struct):
-                raise TypecheckException(f"'{structname}' is not a struct type.", node)
+                raise TypecheckException(f"'{node.name}' is not a struct type.", node)
             fields : typing.Dict[str, bongtypes.ValueType] = {}
             for name, value in node.fields.items():
                 argtypes, turn = self.check(value)
@@ -569,7 +577,9 @@ class TypeChecker:
                 if not isinstance(argtypes[0], bongtypes.ValueType):
                     raise TypecheckException("ValueType expected", value)
                 fields[name] = argtypes[0]
-            struct_val = bongtypes.Struct(structname, fields) # TODO this name needs to be resolved, see line above
+            # See issue #27: Currently, we only write the resolved struct type's
+            # name into the struct value here.
+            struct_val = bongtypes.Struct(struct_type.value_type.name, fields)
             if struct_type.value_type != struct_val:
                 # TODO We definitely need better error reporting here!
                 raise TypecheckException("Instantiated struct does not match"

@@ -176,6 +176,9 @@ class AutoType(ValueType):
 	def __str__(self):
 		return "AutoType"
 
+# TODO I think the path of the module should be part of the struct type
+# here if struct X from module A should be different from struct X from
+# module B, see issue #27.
 class Struct(ValueType):
 	def __init__(self, name : str, fields : typing.Dict[str, ValueType]):
 		self.name = name

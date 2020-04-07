@@ -1,11 +1,11 @@
 // Returns a substring / range / slice of a given string. The indexes
 // are interpreted as [from, to), the from is inclusive, the to is exclusive.
 // str_range("Hi, Bong!", 4, 8) returns "Bong"
-func str_range(str, from, to) {
+func str_range(input : str, from : int, to : int) : str {
 	let i = from
 	let res = ""
 	while i < to {
-		res = res + str[i]
+		res = res + input[i]
 		i = i + 1
 	}
 	return res
