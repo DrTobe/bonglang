@@ -549,7 +549,11 @@ class Parser:
             return True
         if self.peek(0).type == token.LPAREN:
             return True
-        if self.peek(0).type == token.DOT:
+        # TODO Currently, we enforce the dot to follow immediately after
+        # the previous identifier so that things like 'cd ..' or 'ls .'
+        # will still be parsed as program calls. This should be changed
+        # later when program call generation is fixed.
+        if self.peek(0).type == token.DOT and not self.peek(0).prec_by_space:
             return True
         if (self.peek(0).type == token.LBRACE
                 and self.peek(1).type == token.IDENTIFIER

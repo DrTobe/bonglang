@@ -16,7 +16,7 @@ class Return(Enum):
 
 class TypeChecker:
     def __init__(self, modules : typing.Optional[typing.Dict[str, ast.TranslationUnit]] = None):
-        self.modules : typing.Dict[str, ast.TranslationUnit] = {} if modules==None else modules
+        self.modules : typing.Dict[str, ast.TranslationUnit] = modules if isinstance(modules, dict) else {}
 
     def checkprogram(self, main_unit : ast.TranslationUnit) -> typing.Optional[ast.Program]:
         try:
