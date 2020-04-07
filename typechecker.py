@@ -15,8 +15,8 @@ class Return(Enum):
     YES = 3   # a possibly nested return statement that is definitely invoked
 
 class TypeChecker:
-    def __init__(self):
-        pass
+    def __init__(self, modules : typing.Optional[typing.Dict[str, ast.TranslationUnit]] = None):
+        self.modules : typing.Dict[str, ast.TranslationUnit] = {} if modules==None else modules
 
     def checkprogram(self, main_unit : ast.TranslationUnit) -> typing.Optional[ast.Program]:
         try:
@@ -65,7 +65,6 @@ class TypeChecker:
         # Anyways, for convenience, we make everything accessible here.
         self.main_unit = main_unit
         self.symbol_table = main_unit.symbol_table
-        self.modules : typing.Dict[str, ast.TranslationUnit] = {}
         program = ast.Program(self.modules, main_unit)
         # Resolve module imports first
         self.parse_imports(main_unit)
@@ -473,7 +472,7 @@ class TypeChecker:
                 module = self.modules[modulepath]
                 if not module.symbol_table.contains(node.rhs):
                     raise TypecheckException(f"Name '{node.rhs}' not found in"
-                            " module '{node.lhs}' which resolved to '{lhs[0]}'.", node)
+                            f" module '{node.lhs}' which resolved to '{lhs[0]}'.", node)
                 return TypeList([module.symbol_table[node.rhs].typ]), Return.NO
             raise TypecheckException("DotAccess with unsupported type.", node.lhs)
         elif isinstance(node, ast.FunctionDefinition):

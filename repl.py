@@ -5,6 +5,8 @@ from parser import Parser, UnexpectedEof
 from typechecker import TypeChecker
 from evaluator import Eval
 from symbol_table import SymbolTable
+import typing
+import ast
 
 import sys
 import traceback
@@ -27,6 +29,7 @@ def run(cmd):
     return res.stdout[:-1] # omit \n at the end
 
 symtable = SymbolTable() # has to be global now to be accessed by tab_completer()
+modules : typing.Dict[str, ast.TranslationUnit] = {} # will be reused just like the symbol table
 
 tab_completer_list = [] # 'static' var for tab_completer() in python :(
 def tab_completer(text, i): # i = it is called several times
@@ -159,14 +162,14 @@ def main():
             # symbol table / environment.
             # For tab-completion, do we want to support local/scoped variables?
             p = Parser(l, symtable)
-            typecheck = TypeChecker()
+            typecheck = TypeChecker(modules)
             try:
-                program = p.compile()
+                unit = p.compile()
             except UnexpectedEof as e:
                 # retain current input
                 continue
-            success = typecheck.checkprogram(program)
-            if not success:
+            program = typecheck.checkprogram(unit)
+            if not program:
                 code = "" # remove current input, it's invalid
                 continue
             evaluated = evaluator.evaluate(program)

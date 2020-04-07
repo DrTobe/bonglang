@@ -4,7 +4,9 @@ from environment import Environment
 import bong_builtins
 import bongtypes
 from flatlist import FlatList
+import collections
 from collections import UserDict
+import symbol_table
 
 # For subprocesses
 import os
@@ -23,21 +25,34 @@ class Eval:
             }
     def __init__(self, printfunc=print):
         self.printfunc = printfunc
+        # The following structures must
+        # already be defined here so that they are retained for shell
+        # input (which is split on several ast.Programs).
+        # Variables (and struct instances) are in the environment, only
+        # those can actually change.
+        self.environment = Environment()
+        # Modules/Imports, custom types and function definitions are accessed through
+        # the ast.TranslationUnit directly. The evaluator can access/read the symbol table
+        # to identify stuff.
+        # Here, initialized empty, filled with content when evaluating.
+        self.current_unit = TranslationUnitRef(ast.TranslationUnit([], collections.OrderedDict(), collections.OrderedDict(), [], symbol_table.SymbolTable()))
+        # All imported modules
+        self.modules : typing.Dict[str, ast.TranslationUnit] = {}
 
     def evaluate(self, node):
         if isinstance(node, ast.Program):
             # Register all imported modules
-            self.modules : typing.Dict[str, ast.TranslationUnit] = node.modules
+            for k, v in node.modules.items():
+                self.modules[k] = v
             # Then evaluate the main module/file/input
             return self.evaluate(node.main_unit)
         if isinstance(node, ast.TranslationUnit):
-            # Variables (and struct instances) are in the environment, only
-            # those can actually change.
-            self.environment = Environment()
-            # Modules/Imports, custom types and function definitions are accessed through
-            # the ast.TranslationUnit directly. The evaluator can access/read the symbol table
-            # to identify stuff.
-            self.current_unit = TranslationUnitRef(node)
+            # First, retain/copy all function definitions. The other stuff seems
+            # not to be required currently.
+            for k, v in node.function_definitions.items():
+                self.current_unit.unit.function_definitions[k] = v
+            # Set the current symbol table (which could be a reused one)
+            self.current_unit.unit.symbol_table = node.symbol_table
             # Afterwards, run all non-function statements
             res = None
             for stmt in node.statements:
