@@ -61,6 +61,19 @@ def location_minmax(lhs : Location, rhs : Location) ->  Location:
         maxline, maxcol = lhs[3], max(lhs[4], rhs[4])
     return (lhs[0], minline, mincol, maxline, maxcol, True)
 
+class Program(BaseNode):
+    def __init__(self,
+            modules : typing.Dict[str, TranslationUnit],
+            main_unit : TranslationUnit):
+        stmts : typing.List[BaseNode] = []
+        stmts.append(main_unit)
+        stmts.extend(modules.values())
+        super().__init__([], stmts)
+        self.modules = modules
+        self.main_unit = main_unit
+    def __str__(self):
+        return f"ast.Program:\n{self.main_unit}"
+
 class TranslationUnit(BaseNode):
     def __init__(self,
             import_statements : typing.List[Import],

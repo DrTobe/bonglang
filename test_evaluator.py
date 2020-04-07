@@ -151,6 +151,11 @@ class TestEvaluator(unittest.TestCase):
         self.check("struct T { x : B } struct B { y : int } T { x : B { y : 7 } }.x.y", "7")
         self.check("struct T { x : B } struct B { y : int } let t = T { x : B { y : 7 } }; t.x.y", "7")
 
+    def test_import(self):
+        self.check("import \"tests/module.bon\" as mod; let s = mod.moduletype { a : 0, b : 1 }; s.b", 1)
+        self.check("import \"tests/module.bon\" as mod; let s = mod.moduletype { a : 0, b : 1 }; s", "moduletype { a : 0, b : 1 }")
+        #self.check("import \"tests/module.bon\" as mod; let s = mod.modulefunc(); s", 42)
+
     # Helper method to typecheck the given code chunk
     def typecheck(self, code):
         checked = typecheck(code)

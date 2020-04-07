@@ -126,7 +126,7 @@ class TestTypechecker(unittest.TestCase):
 
     def test_struct_definition(self):
         self.check("struct T { x : unknown, y : float }") # inner type unknown
-        # TODO
+        # TODO recursive types, see issue #25
         #self.check("struct A { x : B }; struct B { y : A }") # recursive types
 
     def test_struct_value(self):
@@ -154,6 +154,7 @@ class TestTypechecker(unittest.TestCase):
         self.check("import \"tests/module_missingsubsubmodule.bon\" as mod")
         self.check("import \"tests/module.bon\" as mod; mod.missingfunc();")
         self.check("import \"tests/module.bon\" as mod; let a : mod.missingtype = mod.missingtype { x : 5 };")
+        self.check("import \"tests/module.bon\" as mod; let s : float = mod.modulefunc(); s") # wrong type
 
     def check(self, code):
         worked = typecheck(code)

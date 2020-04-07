@@ -12,6 +12,8 @@ import io
 # For cmdline arguments
 import sys
 
+import typing
+
 class Eval:
     # Defined here so that it can be used by the parser
     BUILTIN_ENVIRONMENT = {
@@ -173,6 +175,7 @@ class Eval:
             lhs = self.evaluate(node.lhs)
             return lhs[index]
         elif isinstance(node, ast.DotAccess):
+            # TODO The following works for StructValue, does it work for modules, too?
             return self.evaluate(node.lhs)[node.rhs]
         if isinstance(node, ast.FunctionCall):
             assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
@@ -467,9 +470,15 @@ class ReturnValue:
         return result
 
 class StructValue(UserDict):
-    def __init__(self, name : ast.BaseNode): # name should be Identifier or DotAccess
+    def __init__(self, name : typing.Union[ast.Identifier, ast.DotAccess]):
         super().__init__()
-        self.name = name
+        if isinstance(name, ast.Identifier):
+            self.name = name.name
+        elif isinstance(name, ast.DotAccess):
+            self.name = name.rhs
+        else:
+            raise Exception("StructValues should be initialized with ast.Identifier"
+                    " or ast.DotAccess!")
     def __str__(self):
         fields = []
         for name, value in self.data.items():

@@ -18,9 +18,9 @@ class TypeChecker:
     def __init__(self):
         pass
 
-    def checkprogram(self, program : ast.TranslationUnit) -> bool:
+    def checkprogram(self, main_unit : ast.TranslationUnit) -> typing.Optional[ast.Program]:
         try:
-            self.checkprogram_uncaught(program)
+            return self.checkprogram_uncaught(main_unit)
         except TypecheckException as e:
             if e.node != None:
                 loc = e.node.get_location()
@@ -28,8 +28,7 @@ class TypeChecker:
             else:
                 posstring = ""
             print(f"TypecheckError{posstring}: {str(e.msg)}", file=sys.stderr)
-            return False
-        return True
+            return None
 
     # The typechecker has to assign types in the symbol table for
     # - function definitions (parameter types, return types)
@@ -57,21 +56,25 @@ class TypeChecker:
     # If you want to try out the insane approach, just insert
     # resolve_type() and resolve_function_interface() at the
     # appropriate places when check()ing the ast.
-    def checkprogram_uncaught(self, program : ast.TranslationUnit):
+    def checkprogram_uncaught(self, main_unit : ast.TranslationUnit):
         # DEBUG
-        #print(program.symbol_table)
-        #print(program)
-        self.symbol_table = program.symbol_table
-        self.program = program # TODO most probably necessary?
-        # Resolve module imports first
+        #print(main_unit.symbol_table)
+        #print(main_unit)
+        # Theoretically, everything is accessible via this chain:
+        # self.program.main_unit.symbol_table
+        # Anyways, for convenience, we make everything accessible here.
+        self.main_unit = main_unit
+        self.symbol_table = main_unit.symbol_table
         self.modules : typing.Dict[str, ast.TranslationUnit] = {}
-        self.parse_imports(program)
+        program = ast.Program(self.modules, main_unit)
+        # Resolve module imports first
+        self.parse_imports(main_unit)
         # Then resolve types
-        self.resolve_types(program)
+        self.resolve_types(main_unit)
         for unit in self.modules.values():
             self.resolve_types(unit)
         # Resolve function interfaces
-        self.resolve_function_interfaces(program)
+        self.resolve_function_interfaces(main_unit)
         for unit in self.modules.values():
             self.resolve_function_interfaces(unit)
         # Typecheck the rest (also assigning variable types)
@@ -80,12 +83,12 @@ class TypeChecker:
             self.symbol_table = unit.symbol_table
             for func in unit.function_definitions:
                 res, turn = self.check(func)
-        # Functions in main_module / program
-        self.symbol_table = program.symbol_table
-        for func in program.function_definitions:
+        # Functions in main_module / main_unit
+        self.symbol_table = main_unit.symbol_table
+        for func in main_unit.function_definitions:
             res, turn = self.check(func)
-        # Statements in main_module / program
-        for stmt in program.statements:
+        # Statements in main_module / main_unit
+        for stmt in main_unit.statements:
             res, turn = self.check(stmt)
             # If there is a possible return value,
             if turn != Return.NO:
@@ -93,6 +96,7 @@ class TypeChecker:
                 expect = bongtypes.TypeList([bongtypes.Integer()])
                 if not res.sametype(expect):
                     raise TypecheckException("Return type of program does not evaluate to int.", stmt)
+        return program
 
     def parse_imports(self, parent_unit : ast.TranslationUnit):
         for imp_stmt in parent_unit.import_statements:
@@ -406,7 +410,7 @@ class TypeChecker:
                             raise TypecheckException("The output of a pipeline can only be written to one or two string variables, let with {} variables  was found instead.".format(len(names)), assignto)
                         for name, type_identifier in zip(assignto.names, assignto.types):
                             if isinstance(type_identifier, ast.BongtypeIdentifier):
-                                typ = self.resolve_type(type_identifier, self.program, assignto)
+                                typ = self.resolve_type(type_identifier, self.main_unit, assignto)
                                 if not typ.sametype(bongtypes.String()):
                                     raise TypecheckException("The output of a pipeline"
                                         " can only be written to string variables, let"
@@ -470,7 +474,7 @@ class TypeChecker:
                 if not module.symbol_table.contains(node.rhs):
                     raise TypecheckException(f"Name '{node.rhs}' not found in"
                             " module '{node.lhs}' which resolved to '{lhs[0]}'.", node)
-                return module.symbol_table[rhs], Return.NO
+                return TypeList([module.symbol_table[node.rhs].typ]), Return.NO
             raise TypecheckException("DotAccess with unsupported type.", node.lhs)
         elif isinstance(node, ast.FunctionDefinition):
             # The function interface should already be completely in the symbol table.
@@ -530,7 +534,7 @@ class TypeChecker:
                     raise TypecheckException("Number of expressions on rhs of let statement does not match the number of variables.", node)
                 for name, type_identifier, result in zip(node.names, node.types, results):
                     if isinstance(type_identifier, ast.BongtypeIdentifier):
-                        typ = self.resolve_type(type_identifier, self.program, node)
+                        typ = self.resolve_type(type_identifier, self.main_unit, node)
                         typ = merge_types(typ, result, node, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, typ, result))
                         self.symbol_table[name].typ = typ
                     else:
