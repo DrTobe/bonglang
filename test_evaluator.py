@@ -154,7 +154,7 @@ class TestEvaluator(unittest.TestCase):
     def test_import(self):
         self.check("import \"tests/module.bon\" as mod; let s = mod.moduletype { a : 0, b : 1 }; s.b", 1)
         self.check("import \"tests/module.bon\" as mod; let s = mod.moduletype { a : 0, b : 1 }; s", "moduletype { a : 0, b : 1 }")
-        #self.check("import \"tests/module.bon\" as mod; let s = mod.modulefunc(); s", 42)
+        self.check("import \"tests/module.bon\" as mod; let s = mod.modulefunc(); s", 42)
 
     # Helper method to typecheck the given code chunk
     def typecheck(self, code):
@@ -187,7 +187,8 @@ def evaluate(code, printer):
     p = Parser(l)
     tc= TypeChecker()
     e = Eval(printer)
-    program = p.compile()
-    if not tc.checkprogram(program):
+    unit = p.compile()
+    program = tc.checkprogram(unit)
+    if not program:
         return "Typechecker failed!"
     return e.evaluate(program)

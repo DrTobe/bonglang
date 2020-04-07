@@ -78,14 +78,14 @@ class TranslationUnit(BaseNode):
     def __init__(self,
             import_statements : typing.List[Import],
             struct_definitions : collections.OrderedDict[str, StructDefinition],
-            function_definitions : typing.List[FunctionDefinition],
+            function_definitions : collections.OrderedDict[str, FunctionDefinition],
             statements : typing.List[BaseNode],
             symbol_table : symbol_table.SymbolTable):
         stmts : typing.List[BaseNode] = []
         stmts.extend(statements)
         stmts.extend(import_statements)
         stmts.extend(struct_definitions.values())
-        stmts.extend(function_definitions)
+        stmts.extend(function_definitions.values())
         super().__init__([], stmts)
         self.statements = statements
         self.import_statements = import_statements
@@ -104,7 +104,7 @@ class TranslationUnit(BaseNode):
         return program
         """
         stmts = []
-        for stmt in (self.import_statements + list(self.struct_definitions.values()) + self.function_definitions + self.statements):
+        for stmt in (self.import_statements + list(self.struct_definitions.values()) + list(self.function_definitions.values()) + self.statements):
             stmts.append(str(stmt))
         return "{\n" + "\n".join(stmts) + "\n}"
 

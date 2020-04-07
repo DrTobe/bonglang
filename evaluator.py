@@ -1,6 +1,8 @@
+from __future__ import annotations
 import ast
 from environment import Environment
 import bong_builtins
+import bongtypes
 from flatlist import FlatList
 from collections import UserDict
 
@@ -21,21 +23,23 @@ class Eval:
             }
     def __init__(self, printfunc=print):
         self.printfunc = printfunc
-        self.environment = Environment()
-        self.functions = Environment()
-        # Register all builtin-functions in the environment
-        for bfuncname, bfunc in bong_builtins.functions.items():
-            #if not self.functions.exists(bfuncname): # For re-using in shell mode
-            self.functions.reg_and_set(bfuncname, bfunc[0])
 
     def evaluate(self, node):
+        if isinstance(node, ast.Program):
+            # Register all imported modules
+            self.modules : typing.Dict[str, ast.TranslationUnit] = node.modules
+            # Then evaluate the main module/file/input
+            return self.evaluate(node.main_unit)
         if isinstance(node, ast.TranslationUnit):
-            # Register all functions in the environment before evaluating the
-            # top-level-statements
-            for func in node.function_definitions:
-                self.functions.reg_and_set(func.name, func)
-            res = None
+            # Variables (and struct instances) are in the environment, only
+            # those can actually change.
+            self.environment = Environment()
+            # Modules/Imports, custom types and function definitions are accessed through
+            # the ast.TranslationUnit directly. The evaluator can access/read the symbol table
+            # to identify stuff.
+            self.current_unit = TranslationUnitRef(node)
             # Afterwards, run all non-function statements
+            res = None
             for stmt in node.statements:
                 res = self.evaluate(stmt)
                 if isinstance(res, ReturnValue):
@@ -175,35 +179,51 @@ class Eval:
             lhs = self.evaluate(node.lhs)
             return lhs[index]
         elif isinstance(node, ast.DotAccess):
-            # TODO The following works for StructValue, does it work for modules, too?
+            # The following is only used for StructValue, modules are only used
+            # for module- and function-access which is handled in FunctionCall below.
             return self.evaluate(node.lhs)[node.rhs]
         if isinstance(node, ast.FunctionCall):
-            assert(isinstance(node.name, ast.Identifier)) # TODO this changes with modules
-            funcname = node.name.name
-            function = self.functions.get(funcname)
-            if isinstance(function, ast.FunctionDefinition):
-                # TODO Obsolete thanks to typechecker?
-                if len(function.parameter_names) != len(node.args):
-                    raise Exception("wrong number of arguments")
-            args = []
-            for a in node.args:
-                args.append(self.evaluate(a))
-            if isinstance(function, ast.FunctionDefinition):
-                # Bong function
-                self.push_new_env()
-                try:
-                    for i, param in enumerate(function.parameter_names):
-                        self.environment.register(param)
-                        self.environment.set(param, args[i])
-                    result = self.evaluate(function.body)
-                finally:
-                    self.pop_env()
-                if isinstance(result, ReturnValue):
-                    return result.value
-                return result
+            # node.name should either be an ast.Identifier, then we call a function
+            # in the current module/unit, or an ast.DotAccess, then we call a function
+            # in the specified module/unit.
+            if isinstance(node.name, ast.Identifier):
+                unit = self.current_unit.unit
+                funcname = node.name.name
+            elif isinstance(node.name, ast.DotAccess):
+                unit = self.get_module(node.name.lhs)
+                funcname = node.name.rhs
             else:
-                # Builtin function
-                return function(args)
+                raise Exception("Identifier or DotAccess for function name expected.")
+            # Change (PUSH) the current unit. We also do this if we call a function
+            # in the current unit/module because then we do not have to decide
+            # afterwards if we have to pop the translation unit back, we just do it.
+            self.current_unit = TranslationUnitRef(unit, self.current_unit)
+            try:
+                # Evaluate arguments
+                args = []
+                for a in node.args:
+                    args.append(self.evaluate(a))
+                # Call function, either builtin or defined
+                if isinstance(unit.symbol_table[funcname].typ, bongtypes.Function):
+                    # Bong function
+                    function = unit.function_definitions[funcname]
+                    self.push_new_env()
+                    try:
+                        for i, param in enumerate(function.parameter_names):
+                            self.environment.register(param)
+                            self.environment.set(param, args[i])
+                        result = self.evaluate(function.body)
+                    finally:
+                        self.pop_env()
+                    if isinstance(result, ReturnValue):
+                        return result.value
+                    return result
+                else:
+                    # Builtin function
+                    return bong_builtins.functions[funcname][0](args)
+            finally:
+                # Change back (POP) the current unit
+                self.current_unit = self.current_unit.parent
         elif isinstance(node, ast.Print):
             self.printfunc(self.evaluate(node.expr))
         elif isinstance(node, ast.Let):
@@ -436,6 +456,26 @@ class Eval:
     def pop_env(self):
         self.environment = self.environment.parent
 
+    # Takes an Identifier or DotAccess which should describe a module
+    # and returns the corresponding ast.TranslationUnit. The search
+    # is started at self.current_unit's symbol table. For each resolution
+    # step, another (the next) symbol table is used.
+    def get_module(self, name : ast.BaseNode) -> ast.TranslationUnit: # name should be Identifier (returns current_unit) or DotAccess (returns resolved DotAccess.lhs)
+        # DotAccesses are forwarded until an Identifier is found. The
+        # Identifier uses the current_unit's symbol table to resolve
+        # the module. The DotAccesses use the returned units to resolve
+        # further modules afterwards.
+        if isinstance(name, ast.Identifier):
+            module = self.current_unit.unit.symbol_table[name.name].typ
+        elif isinstance(name, ast.DotAccess):
+            unit = self.get_module(name.lhs)
+            module = unit.symbol_table[name.rhs].typ
+        else:
+            raise Exception("Identifier or DotAccess expected.")
+        if not isinstance(module, bongtypes.Module):
+            raise Exception("Module expected.")
+        return self.modules[module.path]
+
 def isTruthy(value):
     if value == None or value == False:
         return False
@@ -484,3 +524,8 @@ class StructValue(UserDict):
         for name, value in self.data.items():
             fields.append(name + " : " + str(value))
         return str(self.name) + " { " + ", ".join(sorted(fields)) + " }"
+
+class TranslationUnitRef:
+    def __init__(self, unit : ast.TranslationUnit, parent : typing.Optional[TranslationUnitRef] = None):
+        self.unit = unit
+        self.parent = parent

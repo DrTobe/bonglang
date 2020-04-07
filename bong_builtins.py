@@ -27,7 +27,6 @@ def check_get_argv(argument_types : bongtypes.TypeList) -> bongtypes.TypeList:
         raise bongtypes.BongtypeException("Function 'get_argv' expects no arguments.")
     return bongtypes.TypeList([bongtypes.Array(bongtypes.String())])
 
-# TODO Currently disabled: Array append
 def builtin_func_append(args):
     return args[0].append(args[1])
 def check_append(argument_types):

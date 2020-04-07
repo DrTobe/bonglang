@@ -81,11 +81,11 @@ class TypeChecker:
         # Functions in modules
         for unit in self.modules.values():
             self.symbol_table = unit.symbol_table
-            for func in unit.function_definitions:
+            for func in unit.function_definitions.values():
                 res, turn = self.check(func)
         # Functions in main_module / main_unit
         self.symbol_table = main_unit.symbol_table
-        for func in main_unit.function_definitions:
+        for func in main_unit.function_definitions.values():
             res, turn = self.check(func)
         # Statements in main_module / main_unit
         for stmt in main_unit.statements:
@@ -172,7 +172,7 @@ class TypeChecker:
         return value_type
 
     def resolve_function_interfaces(self, unit : ast.TranslationUnit):
-        for func_definition in unit.function_definitions:
+        for func_definition in unit.function_definitions.values():
             self.resolve_function_interface(func_definition, unit)
     
     def resolve_function_interface(self, function : ast.FunctionDefinition, unit : ast.TranslationUnit):

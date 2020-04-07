@@ -37,12 +37,12 @@ class Parser:
             else:
                 lexeme = t.type
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
-            return ast.TranslationUnit([], collections.OrderedDict(), [], [], self.symbol_table)
+            return ast.TranslationUnit([], collections.OrderedDict(), collections.OrderedDict(), [], self.symbol_table)
     
     def compile_uncaught(self) -> ast.TranslationUnit:
         imp_stmts : typing.List[ast.Import] = []
         struct_stmts : collections.OrderedDict[str, ast.StructDefinition] = collections.OrderedDict()
-        func_stmts : typing.List[ast.FunctionDefinition] = []
+        func_stmts : collections.OrderedDict[str, ast.FunctionDefinition] = collections.OrderedDict()
         statements : typing.List[ast.BaseNode] = []
         while self.peek().type != token.EOF:
             stmt = self.top_level_stmt()
@@ -53,7 +53,7 @@ class Parser:
                     raise Exception("Struct Definition with same name generated twice.")
                 struct_stmts[stmt.name] = stmt
             elif isinstance(stmt, ast.FunctionDefinition):
-                func_stmts.append(stmt)
+                func_stmts[stmt.name] = stmt
             else:
                 statements.append(stmt)
         return ast.TranslationUnit(imp_stmts, struct_stmts, func_stmts, statements, self.symbol_table)
