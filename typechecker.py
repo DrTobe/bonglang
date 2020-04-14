@@ -56,7 +56,7 @@ class TypeChecker:
     # If you want to try out the insane approach, just insert
     # resolve_type() and resolve_function_interface() at the
     # appropriate places when check()ing the ast.
-    def checkprogram_uncaught(self, main_unit : ast.TranslationUnit):
+    def checkprogram_uncaught(self, main_unit : ast.TranslationUnit) -> ast.Program:
         # DEBUG
         #print(main_unit.symbol_table)
         #print(main_unit)
@@ -278,7 +278,11 @@ class TypeChecker:
                 return b, Return.MAYBE
             return TypeList([]), Return.NO # 1
         if isinstance(node, ast.WhileStatement):
-            if type(self.check(node.cond))!=bongtypes.Boolean:
+            types, turn = self.check(node.cond)
+            if len(types)!=1:
+                raise TypecheckException("While statement requires a single"
+                        " boolean value as condition.", node.cond)
+            if type(types[0])!=bongtypes.Boolean:
                 raise TypecheckException("While statement requires boolean condition.", node.cond)
             types, turn = self.check(node.t)
             if turn != Return.NO:
