@@ -42,9 +42,9 @@ class BaseType:
 		return not self.__eq__(other)
 	# Instead, use:
 	def eq(self, other):
-		return False
+		raise BongtypeException(f"Equality operator is not defined for this type ({type(self)}).")
 	def ne(self, other):
-		return False
+		raise BongtypeException(f"Not-equality operator is not defined for this type ({type(self)}).")
 	def __gt__(self, other):
 		return self.comp(other)
 	def __ge__(self, other):
@@ -139,6 +139,7 @@ class Function(BaseType):
 			s += " : " + str(self.return_types)
 		return s
 # Even less a first-class type that the user can use
+# The check_func for BuiltinFunction should return TypeList
 import types # python types
 class BuiltinFunction(BaseType):
 	def __init__(self, check_func : types.FunctionType):

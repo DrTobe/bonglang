@@ -311,6 +311,7 @@ class Parser:
             variable_types.append(typ)
         return (variable_names, variable_types)
     def parse_let_variable(self) -> typing.Tuple[str, typing.Optional[ast.BongtypeIdentifier]]:
+        self.check_eof("Another variable expected")
         if not self.match(token.IDENTIFIER):
             raise ParseException("Expected identifier as variable name.")
         name = self.peek(-1).lexeme

@@ -29,14 +29,14 @@ def check_get_argv(argument_types : bongtypes.TypeList) -> bongtypes.TypeList:
 
 def builtin_func_append(args):
     return args[0].append(args[1])
-def check_append(argument_types):
+def check_append(argument_types) -> bongtypes.TypeList:
     if len(argument_types)!=2:
         raise bongtypes.BongtypeException("Function 'append' expects exactly two arguments.")
     if not isinstance(argument_types[0], bongtypes.Array):
         raise bongtypes.BongtypeException("Function 'append' expects first parameter of type Array.")
     if not argument_types[0].contained_type.sametype(argument_types[1]):
         raise bongtypes.BongtypeException("Appended type does not match array type in function 'append'.")
-    return argument_types[0]
+    return bongtypes.TypeList([argument_types[0]])
 
 functions = {
     #"call": self.callprogram,

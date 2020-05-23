@@ -128,7 +128,13 @@ class TypeChecker:
     # i.e. the Typedefs will be unpacked.
     # It can crash whenever an inner type in a struct, a type hint in a function
     # interface or a type hint in a let statement uses a typename that is not defined.
-    # TODO Prevent recursion
+    # TODO Prevent recursive types: Actually, we will do something different:
+    # 1. Allow recursive types by adding a struct's name to the symbol table
+    # before resolving the inner types.
+    # 2. We check if there is a recursive circle without arrays (which can be
+    # empty):
+    # struct T { x : T } is an error because it is infinite
+    # struct T { x : []T } is OK because the array can be empty at some point
     def resolve_type(self, identifier : ast.BongtypeIdentifier, unit : ast.TranslationUnit, node : ast.BaseNode) -> bongtypes.ValueType:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
@@ -418,9 +424,9 @@ class TypeChecker:
                                     raise TypecheckException("The output of a pipeline"
                                         " can only be written to string variables, let"
                                         f" with explicit type '{typ}' was found instead.", assignto)
-                                self.symbol_table[name].typ = typ
                             else:
-                                self.symbol_table[name].typ = bongtypes.String()
+                                pass
+                            self.symbol_table[name].typ = bongtypes.String()
                     else:
                         output, turn = self.check(assignto)
                         writable = self.is_writable(assignto)
@@ -538,12 +544,11 @@ class TypeChecker:
                 for name, type_identifier, result in zip(node.names, node.types, results):
                     if isinstance(type_identifier, ast.BongtypeIdentifier):
                         typ = self.resolve_type(type_identifier, self.main_unit, node)
-                        typ = merge_types(typ, result, node, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, typ, result))
-                        self.symbol_table[name].typ = typ
+                        result = merge_types(typ, result, node, "Assignment in let statement impossible: '{}' has type '{}' but expression has type '{}'.".format(name, typ, result))
                     else:
                         if not is_specific_type(result):
                             raise TypecheckException("Automatic type for variable '{}' but rhs is no definitive type either, '{}' found instead.".format(name, result), node)
-                        self.symbol_table[name].typ = result
+                    self.symbol_table[name].typ = result
             except TypecheckException as e:
                 for name in node.names:
                     self.symbol_table.remove(name)
@@ -584,14 +589,11 @@ class TypeChecker:
                 if not isinstance(argtypes[0], bongtypes.ValueType):
                     raise TypecheckException("ValueType expected", value)
                 fields[name] = argtypes[0]
-            # See issue #27: Currently, we only write the resolved struct type's
-            # name into the struct value here.
+            # TODO See issue #27: Currently, we only write the resolved struct
+            # type's name into the struct value here.
             struct_val = bongtypes.Struct(struct_type.value_type.name, fields)
-            if struct_type.value_type != struct_val:
-                # TODO We definitely need better error reporting here!
-                raise TypecheckException("Instantiated struct does not match"
-                        " the struct type definition", node)
-            return TypeList([struct_type.value_type]), Return.NO
+            typ = merge_types(struct_type.value_type, struct_val, node)
+            return TypeList([typ]), Return.NO
         elif isinstance(node, ast.ExpressionList):
             types = bongtypes.TypeList([])
             for exp in node:
@@ -608,7 +610,7 @@ class TypeChecker:
     def pop_symtable(self):
         self.symbol_table = self.symbol_table.parent
 
-# merge_types() has two usages:
+# merge_types() has multiple usages:
 # 1. It is used in ast.Array to merge inner types that occur. For example,
 # if an array is given as ''[[], [[]], []]'', it's type must be at least
 # Array(Array(Array(auto))). Merging [], [[]] and [] which are the types
@@ -616,19 +618,41 @@ class TypeChecker:
 # This merge fails whenever the two given types are incompatible, e.g. [[],1].
 # 2. Whenever an array type is required as a value (assignments, function
 # call, ...), this function can be used to match the expected type and the
-# array that was given (and could possibly empty or contain empty arrays). If
+# array that was given (and could possibly be empty or contain empty arrays). If
 # this fails, this automatically raises a TypecheckException. To distinguish
 # the different cases, an optional error message can be supplied.
-def merge_types(x : bongtypes.ValueType, y : bongtypes.BaseType, node : ast.BaseNode, msg : typing.Optional[str] = None) -> bongtypes.ValueType:
+# 3. Struct instantiation (currently: when the struct value contains an empty
+# array, in the future possibly: when the struct def contains an automatic type)
+def merge_types(x : bongtypes.ValueType, y : bongtypes.ValueType, node : ast.BaseNode, msg : typing.Optional[str] = None) -> bongtypes.ValueType:
     if x.sametype(bongtypes.AutoType()):
+        """ TODO Not required (changed y from BaseType to ValueType)
         if not isinstance(y, bongtypes.ValueType):
             raise TypecheckException(mergemsg(f"Types '{x}' and '{y}' can not be"
                 " merged because type {y} can not be instantiated.", msg), node)
+        """
         return y
     if y.sametype(bongtypes.AutoType()):
         return x
     if isinstance(x, bongtypes.Array) and isinstance(y, bongtypes.Array):
         return bongtypes.Array(merge_types(x.contained_type, y.contained_type, node, msg))
+    if isinstance(x, bongtypes.Struct) and isinstance(y, bongtypes.Struct):
+        if x.name != y.name:
+            raise TypecheckException(mergemsg(f"Structs {x.name} and {y.name}"
+                " are incompatible (different names).", msg), node)
+        for xfield in x.fields:
+            if xfield not in y.fields:
+                raise TypecheckException(mergemsg(f"Field {xfield} is missing"
+                    " in rhs.", msg), node)
+        for yfield in y.fields:
+            if yfield not in x.fields:
+                raise TypecheckException(mergemsg(f"Field {yfield} is missing"
+                    " in lhs.", msg), node)
+        # Prevent Python's call by reference to change the arguments by 
+        # creating a new struct here!
+        fields : typing.Dict[str, bongtypes.ValueType] = {}
+        for n in x.fields:
+            fields[n] = merge_types(x.fields[n], y.fields[n], node, msg)
+        return bongtypes.Struct(x.name, fields)
     if not x.sametype(y):
         raise TypecheckException(mergemsg(f"Types '{x}' and '{y}' are"
             " incompatible.", msg), node)
@@ -636,17 +660,29 @@ def merge_types(x : bongtypes.ValueType, y : bongtypes.BaseType, node : ast.Base
 def mergemsg(a, b):
     return b if isinstance(b,str) else a
 
-def match_types(lhs : TypeList, rhs : TypeList, node : ast.BaseNode, msg : str):
+# TODO rename to merge_typelists
+def match_types(lhs : TypeList, rhs : TypeList, node : ast.BaseNode, msg : str) -> TypeList:
     if len(lhs)!=len(rhs):
         raise TypecheckException(msg, node)
+    types = TypeList([])
     for l,r in zip(lhs,rhs):
-        merge_types(l, r, node, msg)
+        types.append(merge_types(l, r, node, msg))
+    return types
 
 def is_specific_type(x : bongtypes.BaseType) -> bool:
     if isinstance(x, bongtypes.AutoType):
         return False
     if isinstance(x, bongtypes.Array):
         return is_specific_type(x.contained_type)
+    if isinstance(x, bongtypes.Struct):
+        for contained_type in x.fields.values():
+            if not is_specific_type(contained_type):
+                return False
+    return True
+def is_specific_types(x : bongtypes.TypeList) -> bool:
+    for t in x:
+        if not is_specific_type(t):
+            return False
     return True
 
 class TypecheckException(Exception):
