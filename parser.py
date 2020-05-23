@@ -8,11 +8,11 @@ import typing
 import os
 import bong_builtins
 import collections
+from eof_exception import UnexpectedEof
 
 class Parser:
     def __init__(self, lexer, symtable=None, basepath=None):
         self.lexer = lexer
-        self.init_token_access()
 
         self.basepath = basepath if basepath != None else os.getcwd()
 
@@ -40,6 +40,9 @@ class Parser:
             return ast.TranslationUnit([], collections.OrderedDict(), collections.OrderedDict(), [], self.symbol_table)
     
     def compile_uncaught(self) -> ast.TranslationUnit:
+        # init_token_access() can throw EofException so it should not
+        # be done in the constructor.
+        self.init_token_access()
         imp_stmts : typing.List[ast.Import] = []
         struct_stmts : collections.OrderedDict[str, ast.StructDefinition] = collections.OrderedDict()
         func_stmts : collections.OrderedDict[str, ast.FunctionDefinition] = collections.OrderedDict()
@@ -749,9 +752,3 @@ class ParseException(Exception):
         self.offset = offset
     def __str__(self):
         return super().__str__()
-
-# Exception that tells us that EOF was found in a situation where we did
-# not expect it. This is used advantageous for multi-line statements
-# in the REPL.
-class UnexpectedEof(Exception):
-    pass

@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
 from lexer import Lexer
-from parser import Parser, UnexpectedEof
+from parser import Parser
 from typechecker import TypeChecker
 from evaluator import Eval
+from eof_exception import UnexpectedEof
 from symbol_table import SymbolTable
 import typing
 import ast

@@ -1,5 +1,6 @@
 import token_def as token
 from token_def import Token
+import eof_exception
 
 class Lexer:
     def __init__(self, code, filepath):
@@ -153,7 +154,10 @@ class Lexer:
         if "\"" == c: # begin of a string
             lex = ""
             while not self.match("\""):
-                lex += self.next()
+                char = self.next()
+                if char == "":
+                    raise eof_exception.UnexpectedEof("Unfinished String.")
+                lex += char
             return self.create_token(token.STRING, len(lex)+2, lex)
         else:
             return self.create_token(token.OTHER, 1, c)
