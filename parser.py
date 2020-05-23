@@ -1,4 +1,5 @@
 import token_def as token
+import lexer
 import ast
 import symbol_table
 import evaluator # Required for access to the builtin variables
@@ -30,6 +31,11 @@ class Parser:
     def compile(self) -> ast.TranslationUnit:
         try:
             return self.compile_uncaught()
+        except lexer.TokenizeException as e:
+            print(f"LexerError in {e.filepath}, line {e.line},"
+                    f" column {e.col}: {e.msg}", file=sys.stderr)
+            return ast.TranslationUnit([], collections.OrderedDict(),
+                    collections.OrderedDict(), [], self.symbol_table)
         except ParseException as e:
             t = self.peek(e.offset)
             if t.lexeme != None:

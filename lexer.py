@@ -153,12 +153,73 @@ class Lexer:
             return self.create_token(token.IDENTIFIER, len(lex), lex)
         if "\"" == c: # begin of a string
             lex = ""
+            token_len = 0
             while not self.match("\""):
-                char = self.next()
-                if char == "":
-                    raise eof_exception.UnexpectedEof("Unfinished String.")
-                lex += char
-            return self.create_token(token.STRING, len(lex)+2, lex)
+                def nextChar():
+                    char = self.next()
+                    nonlocal token_len # https://stackoverflow.com/a/11987499
+                    token_len += 1
+                    if char == "":
+                        raise eof_exception.UnexpectedEof("Unfinished String.")
+                    return char
+                char = nextChar()
+                if char == "\\": # begin escape sequence
+                    char = nextChar()
+                    if char == "\\":
+                        lex += "\\"
+                    elif char == "\"":
+                        lex += "\""
+                    elif char == "0":
+                        lex += chr(0)
+                    elif char == "n":
+                        lex += "\n"
+                    elif char == "r":
+                        lex += "\r"
+                    elif char == "t":
+                        lex += "\t"
+                    elif char == "x":
+                        high = nextChar()
+                        low = nextChar()
+                        try:
+                            val = int(high+low, 16)
+                        except ValueError as e:
+                            self.raise_token_exception("Escape sequence \\x"
+                                    " requires exactly two digits between"
+                                    f" 0 and F/f, '{high+low}' found instead.", 4)
+                        if val < 0 or val > 127:
+                            self.raise_token_exception("Escape sequence \\x"
+                                    " must evaluate to a value between 0 and"
+                                    f" 127, {val} was calculated instead.", 4)
+                        lex += chr(val)
+                    elif char == "u":
+                        char = nextChar()
+                        if char != "{":
+                            self.raise_token_exception("Escape sequence"
+                                    " \\u{...} expects an opening brace,"
+                                    f" '{char}' found instead", 3)
+                        unic = ""
+                        char = nextChar()
+                        while char != "}":
+                            unic += char
+                            if len(unic) > 6:
+                                self.raise_token_exception("Escape sequence"
+                                        " \\u{...} expects at most 6 digits.",
+                                        10) # len = \u{ + 7
+                            char = nextChar()
+                        try:
+                            val = int(unic, 16)
+                        except ValueError as e:
+                            self.raise_token_exception("Escape sequence \\u{...}"
+                                    " requires only digits between"
+                                    f" 0 and F/f, '{unic}' found instead.", 4+len(unic))
+                        if val < 0 or val > 0x10FFFF:
+                            self.raise_token_exception("Escape sequence \\u{...}"
+                                    " must evaluate to a value between 0 and"
+                                    f" 0x10FFFF, {hex(val)} was calculated instead.", 4+len(unic))
+                        lex += chr(val)
+                else:
+                    lex += char
+            return self.create_token(token.STRING, token_len+2, lex)
         else:
             return self.create_token(token.OTHER, 1, c)
 
@@ -186,6 +247,11 @@ class Lexer:
             return True
         return False
 
+    def raise_token_exception(self, msg, length):
+        line = self.line[length]
+        col = self.col[length]
+        raise TokenizeException(msg, self.filepath, line, col, length)
+
 def is_number(arg):
     return arg >= "0" and arg <= "9"
 
@@ -197,3 +263,17 @@ def is_whitespace(arg):
 
 def is_newline(arg):
     return arg == "\r" or arg == "\n"
+
+# Custom exception for lexer errors.
+# The (negative) offset is used to specify which token (in the past) describes
+# the error position best.
+class TokenizeException(Exception):
+    def __init__(self, msg, filepath, line, col, length):
+        super().__init__(self, msg)
+        self.msg = msg
+        self.filepath = filepath
+        self.line = line
+        self.col = col
+        self.length = length
+    def __str__(self):
+        return super().__str__()
