@@ -107,12 +107,30 @@ class TestLexer(unittest.TestCase):
         test_token_types(self, sourcecode, expectedTypes)
 
     def test_string(self):
+        # simple strings
         sourcecode = "\"ABCDE\""
         expectedTypes = [STRING]
+        expectedValues = ["ABCDE"]
         test_token_types(self, sourcecode, expectedTypes)
+        test_lexemes(self, sourcecode, expectedValues)
         sourcecode = "\"\""
         expectedTypes = [STRING]
+        expectedValues = [""]
         test_token_types(self, sourcecode, expectedTypes)
+        test_lexemes(self, sourcecode, expectedValues)
+        # escape sequences
+        sourcecode = "\"\\\"\""
+        test_token_types(self, sourcecode, expectedTypes)
+        test_lexemes(self, sourcecode, "\"")
+        sourcecode = "\"\\n\""
+        test_token_types(self, sourcecode, expectedTypes)
+        test_lexemes(self, sourcecode, "\n")
+        sourcecode = "\"\\x30\""
+        test_token_types(self, sourcecode, expectedTypes)
+        test_lexemes(self, sourcecode, "0")
+        sourcecode = "\"\\u{30}\""
+        test_token_types(self, sourcecode, expectedTypes)
+        test_lexemes(self, sourcecode, "0")
 
     def test_other_tokens(self):
         sourcecode = ", ; . :"
