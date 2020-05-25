@@ -6,7 +6,7 @@ import bongtypes
 from flatlist import FlatList
 import collections
 from collections import UserDict
-import symbol_table
+from symbol_tree import SymbolTree, SymbolTreeNode
 
 # For subprocesses
 import os
@@ -35,9 +35,14 @@ class Eval:
         # the ast.TranslationUnit directly. The evaluator can access/read the symbol table
         # to identify stuff.
         # Here, initialized empty, filled with content when evaluating.
-        self.current_unit = TranslationUnitRef(ast.TranslationUnit([], collections.OrderedDict(), collections.OrderedDict(), [], symbol_table.SymbolTable()))
+        self.current_unit = TranslationUnitRef(ast.TranslationUnit([], collections.OrderedDict(), collections.OrderedDict(), [], {}))
         # All imported modules
         self.modules : typing.Dict[str, ast.TranslationUnit] = {}
+        # 
+        self.symbol_tree = SymbolTree()
+
+    def restore_symbol_tree(self, node : SymbolTreeNode):
+        self.symbol_tree.restore_snapshot(node)
 
     def evaluate(self, node):
         if isinstance(node, ast.Program):
@@ -49,10 +54,12 @@ class Eval:
         if isinstance(node, ast.TranslationUnit):
             # First, retain/copy all function definitions. The other stuff seems
             # not to be required currently.
+            # Here, we can not just set the current unit to node to retain
+            # function definitions across evaluations in shell mode.
             for k, v in node.function_definitions.items():
                 self.current_unit.unit.function_definitions[k] = v
             # Set the current symbol table (which could be a reused one)
-            self.current_unit.unit.symbol_table = node.symbol_table
+            self.current_unit.unit.symbols_global = node.symbols_global
             # Afterwards, run all non-function statements
             res = None
             for stmt in node.statements:
@@ -188,7 +195,12 @@ class Eval:
             else:
                 return lastProcess.returncode
         elif isinstance(node, ast.Identifier):
-            return self.environment.get(node.name)
+            if node.name in self.symbol_tree:
+                return self.environment.get(node.name)
+            elif node.name in self.current_unit.unit.symbols_global:
+                pass
+                # TODO Add global environment
+            raise Exception(f"Unknown identifier '{node.name}' specified. TODO: global environment.")
         elif isinstance(node, ast.IndexAccess):
             index = self.evaluate(node.rhs)
             lhs = self.evaluate(node.lhs)
@@ -219,9 +231,11 @@ class Eval:
                 for a in node.args:
                     args.append(self.evaluate(a))
                 # Call function, either builtin or defined
-                if isinstance(unit.symbol_table[funcname].typ, bongtypes.Function):
+                if isinstance(unit.symbols_global[funcname], bongtypes.Function):
                     # Bong function
                     function = unit.function_definitions[funcname]
+                    symbol_tree_snapshot = self.symbol_tree.take_snapshot()
+                    self.symbol_tree.restore_snapshot(function.symbol_tree_snapshot)
                     self.push_new_env()
                     try:
                         for i, param in enumerate(function.parameter_names):
@@ -229,6 +243,7 @@ class Eval:
                             self.environment.set(param, args[i])
                         result = self.evaluate(function.body)
                     finally:
+                        self.symbol_tree.restore_snapshot(symbol_tree_snapshot)
                         self.pop_env()
                     if isinstance(result, ReturnValue):
                         return result.value
@@ -250,6 +265,7 @@ class Eval:
             # left side.
             if len(node.names) != len(results):
                 raise Exception("number of expressions between rhs and lhs do not match")
+            self.symbol_tree.restore_snapshot(node.symbol_tree_snapshot)
             for name, result in zip(node.names,results):
                 self.environment.register(name)
                 self.environment.set(name, result)
@@ -287,6 +303,7 @@ class Eval:
                 # It's not strictly correct to already register the variable here
                 # because they could be accessed during evaluation of the rhses
                 # but it is the end of a pipeline so the rhses are already evaled.
+                self.symbol_tree.restore_snapshot(let.symbol_tree_snapshot)
                 self.environment.register(name)
                 lhs.append(ast.Identifier(let.tokens, name)) # ugly :( 'let' is required because we can not instantiate an ast node without inner elements, but that's not the only ugly thing here :)
         elif not isinstance(lhs, list):
@@ -481,10 +498,10 @@ class Eval:
         # the module. The DotAccesses use the returned units to resolve
         # further modules afterwards.
         if isinstance(name, ast.Identifier):
-            module = self.current_unit.unit.symbol_table[name.name].typ
+            module = self.current_unit.unit.symbols_global[name.name]
         elif isinstance(name, ast.DotAccess):
             unit = self.get_module(name.lhs)
-            module = unit.symbol_table[name.rhs].typ
+            module = unit.symbols_global[name.rhs]
         else:
             raise Exception("Identifier or DotAccess expected.")
         if not isinstance(module, bongtypes.Module):

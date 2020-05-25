@@ -5,9 +5,9 @@ from parser import Parser
 from typechecker import TypeChecker
 from evaluator import Eval
 from eof_exception import UnexpectedEof
-from symbol_table import SymbolTable
 import typing
 import ast
+import symbol_tree
 
 import sys
 import traceback
@@ -29,7 +29,8 @@ def run(cmd):
         print("Command '{}' failed!".format(cmd.split(" ")[0]))
     return res.stdout[:-1] # omit \n at the end
 
-symtable = SymbolTable() # has to be global now to be accessed by tab_completer()
+# TODO auto complete with symbols
+#symtable = SymbolTable() # has to be global now to be accessed by tab_completer()
 modules : typing.Dict[str, ast.TranslationUnit] = {} # will be reused just like the symbol table
 
 tab_completer_list = [] # 'static' var for tab_completer() in python :(
@@ -64,12 +65,14 @@ def tab_completer(text, i): # i = it is called several times
         # position. So instead of checking if we are in the first word, we just
         # count words :( -> https://stackoverflow.com/questions/60018367/how-to-get-the-current-cursor-position-in-python-readline
         if len(line_words) == 1:
+            """ TODO auto complete
             # a) bong-symbols (functions and variables)
             # TODO Add bong-builtins?
             global symtable
             for name in symtable.names.keys():
                 if name.startswith(text):
                     tab_completer_list.append(name)
+            """
             # b/c) bash-complete
             res = run(bash_complete + " 0 " + line_words[0])
             if res:
@@ -107,7 +110,8 @@ def main():
     # spawned.
     #import warnings
     #warnings.simplefilter("always")
-    global symtable
+    #TODO auto complete global symtable
+    symbol_table_snapshot = None
     evaluator = Eval()
     readline.set_completer(tab_completer)
     readline.parse_and_bind("tab: complete")
@@ -162,8 +166,11 @@ def main():
             # so after Parser.compile() the result will always be the top level
             # symbol table / environment.
             # For tab-completion, do we want to support local/scoped variables?
-            p = Parser(l, symtable)
-            typecheck = TypeChecker(modules)
+            p = Parser(l, symbol_table_snapshot)
+            # TODO Beautify :)
+            symsnap = symbol_table_snapshot[1] if symbol_table_snapshot!=None else None
+            typecheck = TypeChecker(symsnap, modules)
+            #evaluator.restore_symbol_tree(symbol_table_snapshot[1])
             try:
                 unit = p.compile()
             except UnexpectedEof as e:
@@ -178,8 +185,9 @@ def main():
                 if config_print_results:
                     print(str(evaluated))
             code = "" # remove current input if everything worked
+            symbol_table_snapshot = p.take_snapshot()
             # Debugging output
-            #print(str(symtable))
+            #print(symbol_tree.SymbolTree(symbol_table_snapshot[1]))
             #print(str(evaluator.environment))
         # Catch <Ctrl-C> so that we can abort running programs but bong
         # itself is not stopped.

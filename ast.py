@@ -1,7 +1,8 @@
 from __future__ import annotations
 import token_def as token
 from token_def import Token
-import symbol_table
+import bongtypes
+import symbol_tree
 import typing
 from flatlist import FlatList
 import functools # reduce
@@ -80,7 +81,7 @@ class TranslationUnit(BaseNode):
             struct_definitions : collections.OrderedDict[str, StructDefinition],
             function_definitions : collections.OrderedDict[str, FunctionDefinition],
             statements : typing.List[BaseNode],
-            symbol_table : symbol_table.SymbolTable):
+            symbols_global : typing.Dict[str, bongtypes.BaseType]):
         stmts : typing.List[BaseNode] = []
         stmts.extend(statements)
         stmts.extend(import_statements)
@@ -91,7 +92,7 @@ class TranslationUnit(BaseNode):
         self.import_statements = import_statements
         self.struct_definitions = struct_definitions
         self.function_definitions = function_definitions
-        self.symbol_table = symbol_table
+        self.symbols_global = symbols_global
     def __str__(self):
         """ Alternative string representation that contains the symbol table, too
         program = "Program {\n"
@@ -123,10 +124,9 @@ class ExpressionList(FlatList, BaseNode):
         return ", ".join(map(str,self.elements))
 
 class Block(BaseNode):
-    def __init__(self, tokens : typing.List[Token], stmts : typing.List[BaseNode], symbol_table : symbol_table.SymbolTable):
+    def __init__(self, tokens : typing.List[Token], stmts : typing.List[BaseNode]):
         super().__init__(tokens, stmts)
         self.stmts = stmts
-        self.symbol_table = symbol_table
     def __str__(self):
         result = []
         for stmt in self.stmts:
@@ -237,12 +237,13 @@ class BongtypeIdentifier:
         return s
 
 class Let(BaseNode):
-    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[BongtypeIdentifier]], expr : typing.Union[ExpressionList, AssignOp]): # rhs = Expressions or Assignment
+    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[BongtypeIdentifier]], expr : typing.Union[ExpressionList, AssignOp], symbol_tree_snapshot : symbol_tree.SymbolTreeNode): # rhs = Expressions or Assignment
         super().__init__(tokens, [expr])
 
         self.names = names
         self.types = types
         self.expr = expr
+        self.symbol_tree_snapshot = symbol_tree_snapshot
     def __str__(self):
         names = []
         for name, typ in zip(self.names, self.types):
@@ -289,10 +290,11 @@ class Pipeline(BaseNode):
         return pipeline
 
 class PipelineLet(BaseNode):
-    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[BongtypeIdentifier]]):
+    def __init__(self, tokens : typing.List[Token], names : typing.List[str], types : typing.List[typing.Optional[BongtypeIdentifier]], symbol_tree_snapshot : symbol_tree.SymbolTreeNode):
         super().__init__(tokens, [])
         self.names = names
         self.types = types
+        self.symbol_tree_snapshot = symbol_tree_snapshot
     def __str__(self):
         names = []
         for name, typ in zip(self.names, self.types):
@@ -311,14 +313,14 @@ class SysCall(BaseNode):
         return "(call " + " ".join(self.args) + ")"
 
 class FunctionDefinition(BaseNode):
-    def __init__(self, tokens : typing.List[Token], name : str, parameter_names : typing.List[str], parameter_types : typing.List[BongtypeIdentifier], return_types : typing.List[BongtypeIdentifier], body : Block, symbol_table : symbol_table.SymbolTable):
+    def __init__(self, tokens : typing.List[Token], name : str, parameter_names : typing.List[str], parameter_types : typing.List[BongtypeIdentifier], return_types : typing.List[BongtypeIdentifier], body : Block, symbol_tree_snapshot : typing.Optional[symbol_tree.SymbolTreeNode]):
         super().__init__(tokens, [body])
         self.name = name
         self.parameter_names = parameter_names
         self.parameter_types = parameter_types
         self.return_types = return_types
         self.body = body
-        self.symbol_table = symbol_table
+        self.symbol_tree_snapshot = symbol_tree_snapshot
     def __str__(self):
         parameters = []
         for name, typ in zip(self.parameter_names, self.parameter_types):

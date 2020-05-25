@@ -1,7 +1,7 @@
 import token_def as token
 import lexer
 import ast
-import symbol_table
+from symbol_tree import SymbolTree, SymbolTreeNode # the latter for snapshots
 import evaluator # Required for access to the builtin variables
 import sys # To print on stderr
 import bongtypes
@@ -12,21 +12,30 @@ import collections
 from eof_exception import UnexpectedEof
 
 class Parser:
-    def __init__(self, lexer, symtable=None, basepath=None):
+    def __init__(self, lexer, snapshot=None, basepath=None):
         self.lexer = lexer
 
         self.basepath = basepath if basepath != None else os.getcwd()
 
-        if symtable == None:
-            self.symbol_table = symbol_table.SymbolTable()
+        self.symbols_global : typing.Dict[str, bongtypes.BaseNode] = {}
+        self.symbol_tree = SymbolTree()
+        if snapshot != None:
+            self.symbols_global = snapshot[0] # overwrite
+            self.symbol_tree.restore_snapshot(snapshot[1]) # restore
         else:
-            self.symbol_table = symtable
-        for bfuncname, bfunc in bong_builtins.functions.items():
-            if not self.symbol_table.exists(bfuncname): # For re-using symbol tables in shell mode
-                self.symbol_table.register(bfuncname, bongtypes.BuiltinFunction(bfunc[1]))
-        for btypename, btype in bongtypes.basic_types.items():
-            if not self.symbol_table.exists(btypename): # Re-using
-                self.symbol_table.register(btypename, bongtypes.Typedef(btype()))
+            # Only when initializing symbol tables for the first time, register
+            # builtin stuff
+            for bfuncname, bfunc in bong_builtins.functions.items():
+                self.symbols_global[bfuncname] = bongtypes.BuiltinFunction(bfunc[1])
+            for btypename, btype in bongtypes.basic_types.items():
+                self.symbols_global[btypename] = bongtypes.Typedef(btype())
+
+    # TODO Somehow, the Parser is re-initialized each input round, the
+    # evaluator is not. This is somehow the reason why snapshots have to be
+    # taken and restored on the parser.
+    # I guess this design can be revised, too.
+    def take_snapshot(self) -> typing.Tuple[typing.Dict[str, bongtypes.BaseType], SymbolTreeNode]:
+        return self.symbols_global, self.symbol_tree.take_snapshot()
 
     def compile(self) -> ast.TranslationUnit:
         try:
@@ -35,7 +44,7 @@ class Parser:
             print(f"LexerError in {e.filepath}, line {e.line},"
                     f" column {e.col}: {e.msg}", file=sys.stderr)
             return ast.TranslationUnit([], collections.OrderedDict(),
-                    collections.OrderedDict(), [], self.symbol_table)
+                    collections.OrderedDict(), [], self.symbols_global)
         except ParseException as e:
             t = self.peek(e.offset)
             if t.lexeme != None:
@@ -43,7 +52,8 @@ class Parser:
             else:
                 lexeme = t.type
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
-            return ast.TranslationUnit([], collections.OrderedDict(), collections.OrderedDict(), [], self.symbol_table)
+            return ast.TranslationUnit([], collections.OrderedDict(),
+                    collections.OrderedDict(), [], self.symbols_global)
     
     def compile_uncaught(self) -> ast.TranslationUnit:
         # init_token_access() can throw EofException so it should not
@@ -65,7 +75,8 @@ class Parser:
                 func_stmts[stmt.name] = stmt
             else:
                 statements.append(stmt)
-        return ast.TranslationUnit(imp_stmts, struct_stmts, func_stmts, statements, self.symbol_table)
+        return ast.TranslationUnit(imp_stmts, struct_stmts, func_stmts,
+                statements, self.symbols_global)
 
     def top_level_stmt(self) -> ast.BaseNode:
         if self.peek().type == token.IMPORT:
@@ -126,7 +137,9 @@ class Parser:
         toks.add(self.match(token.SEMICOLON))
         if not os.path.isabs(path):
             path = os.path.join(self.basepath, path)
-        self.symbol_table.register(name, bongtypes.UnknownType())
+        if name in self.symbols_global:
+            raise ParseException(f"Name '{name}' already exists in global symbol table. Import impossible.")
+        self.symbols_global[name] = bongtypes.UnknownType()
         return ast.Import(toks, name, path)
 
     def parse_function_definition(self) -> ast.FunctionDefinition:
@@ -138,47 +151,48 @@ class Parser:
         if not toks.add(self.match(token.IDENTIFIER)):
             raise ParseException("Expected function name.")
         name = self.peek(-1).lexeme
-        if self.symbol_table.exists(name):
-            raise ParseException("Name '{}' already exists in symbol table. Function definition impossible.".format(name))
+        if name in self.symbols_global:
+            raise ParseException(f"Name '{name}' already exists in symbol table. Function definition impossible.")
         # Register function name before parsing parameter names (no parameter name should have the function name!)
-        self.symbol_table.register(name, bongtypes.UnknownType())
-        try: # Everything after registering the name has to be caught to remove the name from symtable in case of error
-            # (
-            if not toks.add(self.match(token.LPAREN)):
-                raise ParseException("Expected ( to start the parameter list.")
-            # Parameters
-            parameter_names, parameter_types = self.parse_parameters()
-            # )
-            if not toks.add(self.match(token.RPAREN)):
-                raise ParseException("Expected ) to end the parameter list.")
-            # Return types
-            return_types : typing.List[ast.BongtypeIdentifier] = []
-            if toks.add(self.match(token.COLON)):
-                self.check_eof("Return type list expected.")
+        self.symbols_global[name] = bongtypes.UnknownType()
+        # (
+        if not toks.add(self.match(token.LPAREN)):
+            raise ParseException("Expected ( to start the parameter list.")
+        # Parameters
+        parameter_names, parameter_types = self.parse_parameters()
+        # )
+        if not toks.add(self.match(token.RPAREN)):
+            raise ParseException("Expected ) to end the parameter list.")
+        # Return types
+        return_types : typing.List[ast.BongtypeIdentifier] = []
+        if toks.add(self.match(token.COLON)):
+            self.check_eof("Return type list expected.")
+            return_types.append(self.parse_type())
+            while toks.add(self.match(token.COMMA)):
                 return_types.append(self.parse_type())
-                while toks.add(self.match(token.COMMA)):
-                    return_types.append(self.parse_type())
-            # {
-            if not self.peek().type == token.LBRACE:
-                raise ParseException("Expected function body.")
-            # Push/Pop symbol tables and parse statement block
-            func_symbol_table = symbol_table.SymbolTable(self.symbol_table)
-            self.symbol_table = func_symbol_table
-            try:
-                for param,typ in zip(parameter_names,parameter_types):
-                    if self.symbol_table.exists(param):
-                        raise ParseException("Argument name '{}' already exists in symbol table. Function definition impossible.".format(param))
-                    self.symbol_table.register(param, bongtypes.UnknownType())
-                body = self.block_stmt()
-            finally:
-                self.symbol_table = self.symbol_table.parent # pop
-        except Exception as e:
-            # Remove function name from symtable in case of error
-            # The func_symbol_table is not accessible anymore then and will
-            # be garbage collected so we do not have to clean up that manually.
-            self.symbol_table.remove(name)
-            raise
-        return ast.FunctionDefinition(toks, name, parameter_names, parameter_types, return_types, body, func_symbol_table)
+        # {
+        if not self.peek().type == token.LBRACE:
+            raise ParseException("Expected function body.")
+        # New local symbol table (tree) for statement block
+        # We could just store the global symbol table in the object because
+        # it will always be the same. But remembering the previous symbol
+        # table here theoretically allows to parse function definitions inside
+        # other functions (the local symbol table would be properly restored
+        # then).
+        global_symbol_tree = self.symbol_tree
+        self.symbol_tree = SymbolTree()
+        # Parameters
+        for param,typ in zip(parameter_names,parameter_types):
+            if param in self.symbol_tree:
+                raise ParseException(f"Argument name '{param}' appears twice in function definition")
+            self.symbol_tree.register(param, bongtypes.UnknownType())
+        # Snapshot before block is parsed (this changes the state of the tree)
+        func_symbol_tree_snapshot = self.symbol_tree.take_snapshot()
+        # Function body
+        body = self.block_stmt()
+        # Restore symbol table/tree
+        self.symbol_tree = global_symbol_tree
+        return ast.FunctionDefinition(toks, name, parameter_names, parameter_types, return_types, body, func_symbol_tree_snapshot)
 
     def parse_struct_definition(self) -> ast.StructDefinition:
         toks = TokenList()
@@ -189,8 +203,8 @@ class Parser:
         if not toks.add(self.match(token.IDENTIFIER)):
             raise ParseException("Expected struct name.")
         name = self.peek(-1).lexeme
-        if self.symbol_table.exists(name):
-            raise ParseException(f"Name '{name}' already exists in symbol table. Struct definition impossible.")
+        if name in self.symbols_global:
+            raise ParseException(f"Name '{name}' already exists in global symbol table. Struct definition impossible.")
         # {
         if not toks.add(self.match(token.LBRACE)):
             raise ParseException("Expected { to start the field list.")
@@ -208,7 +222,7 @@ class Parser:
         if not toks.add(self.match(token.RBRACE)):
             raise ParseException("Expected } to end the field list.")
         # If everything went fine, register the struct name
-        self.symbol_table.register(name, bongtypes.UnknownType())
+        self.symbols_global[name] = bongtypes.UnknownType()
         return ast.StructDefinition(toks, name, fields)
 
     # Used by parse_function_definition() and parse_struct_definition()
@@ -271,39 +285,26 @@ class Parser:
         toks = TokenList()
         toks.add(self.peek()) # Add 'let' token itself for correct begin
         var_names, var_types = self.let_lhs() # Writes variable names to symbol table
-        try:
-            if not toks.add(self.match(token.ASSIGN)):
-                raise ParseException("Empty let statements are not supported. Always assign a value!")
-            expr : typing.Union[ast.ExpressionList, ast.AssignOp] = self.assignment()
-        except Exception as e:
-            # Remove variable names from symtable in case of error
-            for name in var_names:
-                self.symbol_table.remove(name)
-            raise
+        if not toks.add(self.match(token.ASSIGN)):
+            raise ParseException("Empty let statements are not supported. Always assign a value!")
+        expr : typing.Union[ast.ExpressionList, ast.AssignOp] = self.assignment()
         toks.add(self.match(token.SEMICOLON))
-        return ast.Let(toks, var_names, var_types, expr)
+        return ast.Let(toks, var_names, var_types, expr, self.symbol_tree.take_snapshot())
     # splitted so that this part can be reused for pipelines
     def let_lhs(self) -> typing.Tuple[typing.List[str],typing.List[typing.Optional[ast.BongtypeIdentifier]]]:
         if not self.match(token.LET):
             raise Exception("Expected let statement.")
         # Parse variable names and types
         variable_names, variable_types = self.parse_let_variables()
-        # Two error cases that look similar here:
-        # 1. One of the names already existed in symbol table
-        # 2. The same name is given twice in this let statement
-        # To not fail after having registered a name here, we have to make
-        # sure that the register() method never fails by checking both
-        # error cases first before registering any names.
-        # 1.
+        # Check for duplicate names
+        names = set()
         for name in variable_names:
-            if self.symbol_table.exists(name):
-                raise ParseException("Name '{}' already exists in symbol table. Let statement impossible.".format(name))
-        # 2.
-        if len(variable_names) != len(set(variable_names)):
-            raise ParseException("This let statement contains duplicate names!")
+            if name in names:
+                raise ParseException(f"Name '{name}' found twice in let statement")
+            names.add(name)
         # Batch register w/o failing
         for name in variable_names:
-            self.symbol_table.register(name, bongtypes.UnknownType())
+            self.symbol_tree.register(name, bongtypes.UnknownType())
         return variable_names, variable_types
     # TODO These functions are extremely similar to
     # parse_parameters() / parse_parameter() / parse_returntype().
@@ -364,19 +365,21 @@ class Parser:
         toks = TokenList()
         if not toks.add(self.match(token.LBRACE)):
             raise ParseException("Expected { for block statement.")
-        block_symbol_table = symbol_table.SymbolTable(self.symbol_table)
-        self.symbol_table = block_symbol_table
-        try:
-            statements : typing.List[ast.BaseNode] = []
-            while self.peek().type != token.RBRACE:
-                self.check_eof("Expected statement for block body.")
-                statements.append(self.stmt())
-            self.check_eof("missing } for block statement")
-            if not toks.add(self.match(token.RBRACE)):
-                raise ParseException("Missing } for block statement.")
-        finally:
-            self.symbol_table = self.symbol_table.parent
-        return ast.Block(toks, statements, block_symbol_table)
+        # Snapshot the current scope (before block)
+        previous_scope = self.symbol_tree.take_snapshot()
+        # Parse all block statments
+        statements : typing.List[ast.BaseNode] = []
+        while self.peek().type != token.RBRACE:
+            self.check_eof("Expected statement for block body.")
+            statements.append(self.stmt())
+        self.check_eof("missing } for block statement")
+        if not toks.add(self.match(token.RBRACE)):
+            raise ParseException("Missing } for block statement.")
+        # Store block scope and ...
+        # leave block scope == restore scope snapshot
+        block_scope = self.symbol_tree.take_snapshot()
+        self.symbol_tree.restore_snapshot(previous_scope)
+        return ast.Block(toks, statements)
 
     def assignment(self) -> typing.Union[ast.ExpressionList, ast.AssignOp]:
         lhs = self.parse_commata_expressions()
@@ -446,7 +449,7 @@ class Parser:
             if self.peek().type == token.LET:
                 toks.add(self.peek())
                 names, types = self.let_lhs()
-                elements.append(ast.PipelineLet(toks, names, types))
+                elements.append(ast.PipelineLet(toks, names, types, self.symbol_tree.take_snapshot()))
             elif (self.peek().type == token.IDENTIFIER and
                     self.peek(1).type == token.COMMA):
                 # Like this, we can not have more "complicated" variables
@@ -598,8 +601,11 @@ class Parser:
         # variable name, function call, struct value, ... here, we only
         # parse the corresponding identifier or ... program call fallback
         if toks.add(self.match(token.IDENTIFIER)):
-            if self.symbol_table.exists(self.peek(-1).lexeme) or self.following_access():
-                return ast.Identifier(toks, self.peek(-1).lexeme)
+            identifier = self.peek(-1).lexeme
+            if (identifier in self.symbol_tree 
+                    or identifier in self.symbols_global
+                    or self.following_access()):
+                return ast.Identifier(toks, identifier)
             # Program Call fallback!
             name = self.peek(-1).lexeme
             args = self.syscall_arguments(name)
