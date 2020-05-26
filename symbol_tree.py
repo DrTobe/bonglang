@@ -8,6 +8,8 @@ class SymbolTreeNode:
         self.typ = typ
         self.stack_index = stack_index
         self.parent = parent
+    def __str__(self):
+        return "SymbolTreeNode -> " + str(SymbolTree(self))
 
 class SymbolTree:
     def __init__(self, leaf : typing.Optional[SymbolTreeNode] = None):

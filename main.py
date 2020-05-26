@@ -17,9 +17,12 @@ def main():
             l = lexer.Lexer(code, arguments[1])
             p = parser.Parser(l)
             ast = p.compile()
+            if not ast:
+                return
             program = typechecker.TypeChecker().checkprogram(ast)
-            if program:
-                evaluator.Eval().evaluate(program)
+            if not program:
+                return
+            evaluator.Eval().evaluate(program)
     else:
         print("Too many arguments\nrun without arguments to start the REPL or run with one file as argument to evaluate")
 

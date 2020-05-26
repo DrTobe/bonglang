@@ -20,7 +20,10 @@ class Parser:
         self.symbols_global : typing.Dict[str, bongtypes.BaseNode] = {}
         self.symbol_tree = SymbolTree()
         if snapshot != None:
-            self.symbols_global = snapshot[0] # overwrite
+            # When restoring the global dictionary, we need to copy the dict.
+            # Otherwise, we change the snapshot that the caller (the repl)
+            # will (most probably) reuse.
+            self.symbols_global = snapshot[0].copy() # overwrite
             self.symbol_tree.restore_snapshot(snapshot[1]) # restore
         else:
             # Only when initializing symbol tables for the first time, register
@@ -37,14 +40,12 @@ class Parser:
     def take_snapshot(self) -> typing.Tuple[typing.Dict[str, bongtypes.BaseType], SymbolTreeNode]:
         return self.symbols_global, self.symbol_tree.take_snapshot()
 
-    def compile(self) -> ast.TranslationUnit:
+    def compile(self) -> typing.Optional[ast.TranslationUnit]:
         try:
             return self.compile_uncaught()
         except lexer.TokenizeException as e:
             print(f"LexerError in {e.filepath}, line {e.line},"
                     f" column {e.col}: {e.msg}", file=sys.stderr)
-            return ast.TranslationUnit([], collections.OrderedDict(),
-                    collections.OrderedDict(), [], self.symbols_global)
         except ParseException as e:
             t = self.peek(e.offset)
             if t.lexeme != None:
@@ -52,9 +53,7 @@ class Parser:
             else:
                 lexeme = t.type
             print("ParseError: Token '{}' found in {}, line {}, column {}: {}".format(lexeme, t.filepath, t.line, t.col, e.msg), file=sys.stderr) # t.length unused
-            return ast.TranslationUnit([], collections.OrderedDict(),
-                    collections.OrderedDict(), [], self.symbols_global)
-    
+        return None
     def compile_uncaught(self) -> ast.TranslationUnit:
         # init_token_access() can throw EofException so it should not
         # be done in the constructor.

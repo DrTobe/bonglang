@@ -111,6 +111,7 @@ def main():
     #import warnings
     #warnings.simplefilter("always")
     #TODO auto complete global symtable
+    #DEBUG symbol_table_snapshot = ({}, None)
     symbol_table_snapshot = None
     evaluator = Eval()
     readline.set_completer(tab_completer)
@@ -158,6 +159,8 @@ def main():
                     inp = f.read()
             code += inp + "\n"
             l = Lexer(code, "repl input")
+            previous_input = code
+            code = ""
             # TODO I think we need to return the current symtable / scope from
             # p.compile() or evakuator.evakuate() in the future so that we
             # use the correct one after having opened a new scope. And for
@@ -173,18 +176,19 @@ def main():
             #evaluator.restore_symbol_tree(symbol_table_snapshot[1])
             try:
                 unit = p.compile()
+                if not unit:
+                    continue
             except UnexpectedEof as e:
-                # retain current input
+                # retain current/previous input
+                code = previous_input
                 continue
             program = typecheck.checkprogram(unit)
             if not program:
-                code = "" # remove current input, it's invalid
                 continue
             evaluated = evaluator.evaluate(program)
             if evaluated != None:
                 if config_print_results:
                     print(str(evaluated))
-            code = "" # remove current input if everything worked
             symbol_table_snapshot = p.take_snapshot()
             # Debugging output
             #print(symbol_tree.SymbolTree(symbol_table_snapshot[1]))
