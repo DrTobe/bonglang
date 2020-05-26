@@ -118,6 +118,9 @@ class TypeChecker:
                 p = parser.Parser(l)
                 child_unit = p.compile()
                 # add2modmap
+                if not isinstance(child_unit, ast.TranslationUnit):
+                    raise TypecheckException(f"Importing {imp_stmt.path}"
+                            " failed.", imp_stmt)
                 self.modules[imp_stmt.path] = child_unit
                 # Recurse
                 self.parse_imports(child_unit)
@@ -133,13 +136,13 @@ class TypeChecker:
     # i.e. the Typedefs will be unpacked.
     # It can crash whenever an inner type in a struct, a type hint in a function
     # interface or a type hint in a let statement uses a typename that is not defined.
-    # TODO Prevent recursive types: Actually, we will do something different:
-    # 1. Allow recursive types by adding a struct's name to the symbol table
-    # before resolving the inner types.
-    # 2. We check if there is a recursive circle without arrays (which can be
-    # empty):
+    # Currently, recursive types are prevented. But actually, it would be
+    # possible to instantiate a type that refers to itself via an array because
+    # that array could be empty. Therefore, it would be nice if we could:
+    # 1. Allow recursive types first.
+    # 2. Check if there is a recursive circle without arrays
     # struct T { x : T } is an error because it is infinite
-    # struct T { x : []T } is OK because the array can be empty at some point
+    # struct T { x : []T } is OK
     def resolve_type(self, identifier : ast.BongtypeIdentifier, unit : ast.TranslationUnit, node : ast.BaseNode) -> bongtypes.ValueType:
         # Arrays are resolved recursively
         if identifier.num_array_levels > 0:
@@ -172,6 +175,11 @@ class TypeChecker:
         # Already known types can be returned
         if not unit.symbols_global[typename].sametype(bongtypes.UnknownType()):
             typedef = unit.symbols_global[typename]
+            # Prevent recursive types
+            if isinstance(typedef, bongtypes.UnfinishedType):
+                raise TypecheckException(f"Type {typename} is recursive."
+                        " This is currently not allowed for several reasons.",
+                        node)
             if not isinstance(typedef, bongtypes.Typedef):
                 raise TypecheckException(f"Type {typename} can not be"
                         " resolved.", node)
@@ -181,6 +189,8 @@ class TypeChecker:
             raise TypecheckException(f"Type {typename} can not be"
                     " resolved.", node)
         struct_def = unit.struct_definitions[typename]
+        # For recursion prevention, remember that we have started this type
+        unit.symbols_global[typename] = bongtypes.UnfinishedType()
         fields : typing.Dict[str, bongtypes.ValueType] = {}
         for name, type_identifier in struct_def.fields.items():
             fields[name] = self.resolve_type(type_identifier, unit, struct_def)

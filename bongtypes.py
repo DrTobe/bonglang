@@ -159,6 +159,15 @@ class UnknownType(BaseType):
 		return False
 	def __str__(self):
 		return "UnknownType"
+# Pseudo type used by the typechecker to mark types that are being resolved
+# but not yet finished. Used for recursion prevention.
+class UnfinishedType(BaseType):
+	def sametype(self, other):
+		if type(other)==UnfinishedType:
+			return True
+		return False
+	def __str__(self):
+		return "UnfinishedType"
 # Pseudo-type for let statements with automatic type resolution and empty arrays.
 # Currently, the AutoType is required to be a ValueType although this should
 # be resolved before evaluating the code. Anyways, AutoTypes are used longer
