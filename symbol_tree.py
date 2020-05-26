@@ -25,21 +25,19 @@ class SymbolTree:
                 return True
             node = node.parent
         return False
-    def __getitem__(self, name): # '[...]' operator read
+    def get_node(self, name): # Helper method for the following methods
         node = self.current_leaf
         while node != None:
             if node.name == name:
-                return node.typ
+                return node
             node = node.parent
         raise Exception("Check if element exists before trying to access it!")
     def __setitem__(self, name, typ): # '[...]' operator write
-        node = self.current_leaf
-        while node != None:
-            if node.name == name:
-                node.typ = typ
-                return
-            node = node.parent
-        raise Exception("Check if element exists before trying to access it!")
+        self.get_node(name).typ = typ
+    def __getitem__(self, name): # '[...]' operator read
+        return self.get_node(name).typ
+    def get_index(self, name):
+        return self.get_node(name).stack_index
     def take_snapshot(self) -> typing.Optional[SymbolTreeNode]:
         return self.current_leaf
     def restore_snapshot(self, node : typing.Optional[SymbolTreeNode]):

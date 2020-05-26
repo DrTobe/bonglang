@@ -1,6 +1,5 @@
 from __future__ import annotations
 import ast
-from environment import Environment
 import bong_builtins
 import bongtypes
 from flatlist import FlatList
@@ -28,9 +27,21 @@ class Eval:
         # The following structures must
         # already be defined here so that they are retained for shell
         # input (which is split on several ast.Programs).
-        # Variables (and struct instances) are in the environment, only
-        # those can actually change.
-        self.environment = Environment()
+        # Everything that can be accessed with a name/identifier, is stored
+        # either in globals or locals.
+        # Globals is a dictionary that maps global names to instances. It
+        # contains modules, typedefs, functions.
+        # Locals is an array which acts as a stack for local variables.
+        # Top-level statements behave like being encapsulated in an implicit
+        # main()-function, i.e. their variables are not global!
+        # I think that we could always use a self.locals.append() whenever
+        # new names are pushed on the stack (function arguments and in let
+        # statements) but it looks more high-level to access the variables
+        # always in the same way, which is: self.locals[symbol_tree.get_index()].
+        # To enable this when declaring variables, we use a list that
+        # automatically grows.
+        #self.globals : typing.Dict[str, ]
+        self.locals = StackList()
         # Modules/Imports, custom types and function definitions are accessed through
         # the ast.TranslationUnit directly. The evaluator can access/read the symbol table
         # to identify stuff.
@@ -72,13 +83,13 @@ class Eval:
                     sys.exit(res.value)
             return res
         if isinstance(node, ast.Block):
-            self.push_new_env()
+            symtree = self.symbol_tree.take_snapshot()
             result = None
             for stmt in node.stmts:
                 result = self.evaluate(stmt)
                 if isinstance(result, ReturnValue):
                     break
-            self.pop_env()
+            self.symbol_tree.restore_snapshot(symtree)
             return result
         if isinstance(node, ast.Return):
             if node.result == None:
@@ -191,12 +202,11 @@ class Eval:
                 process.wait()
             if assignto != None:
                 self.assign(assignto, list(outstreams[:numOutputPipes]))
-                return lastProcess.returncode
-            else:
-                return lastProcess.returncode
+            return lastProcess.returncode
         elif isinstance(node, ast.Identifier):
             if node.name in self.symbol_tree:
-                return self.environment.get(node.name)
+                index = self.symbol_tree.get_index(node.name)
+                return self.locals[index]
             elif node.name in self.current_unit.unit.symbols_global:
                 pass
                 # TODO Add global environment
@@ -226,7 +236,7 @@ class Eval:
             # afterwards if we have to pop the translation unit back, we just do it.
             self.current_unit = TranslationUnitRef(unit, self.current_unit)
             try:
-                # Evaluate arguments
+                # Evaluate arguments (with old scope)
                 args = []
                 for a in node.args:
                     args.append(self.evaluate(a))
@@ -236,15 +246,17 @@ class Eval:
                     function = unit.function_definitions[funcname]
                     symbol_tree_snapshot = self.symbol_tree.take_snapshot()
                     self.symbol_tree.restore_snapshot(function.symbol_tree_snapshot)
-                    self.push_new_env()
+                    local_env_snapshot = self.locals
+                    self.locals = StackList()
                     try:
-                        for i, param in enumerate(function.parameter_names):
-                            self.environment.register(param)
-                            self.environment.set(param, args[i])
+                        # Add arguments to new local environment, then eval func
+                        for name, arg in zip(function.parameter_names, args):
+                            index = self.symbol_tree.get_index(name)
+                            self.locals[index] = arg
                         result = self.evaluate(function.body)
                     finally:
                         self.symbol_tree.restore_snapshot(symbol_tree_snapshot)
-                        self.pop_env()
+                        self.locals = local_env_snapshot
                     if isinstance(result, ReturnValue):
                         return result.value
                     return result
@@ -266,9 +278,9 @@ class Eval:
             if len(node.names) != len(results):
                 raise Exception("number of expressions between rhs and lhs do not match")
             self.symbol_tree.restore_snapshot(node.symbol_tree_snapshot)
-            for name, result in zip(node.names,results):
-                self.environment.register(name)
-                self.environment.set(name, result)
+            for name, result in zip(node.names, results):
+                index = self.symbol_tree.get_index(name)
+                self.locals[index] = result
         elif isinstance(node, ast.Array):
             elements = []
             for e in node.elements:
@@ -300,11 +312,14 @@ class Eval:
             let = lhs
             lhs = []
             for name in let.names:
-                # It's not strictly correct to already register the variable here
-                # because they could be accessed during evaluation of the rhses
-                # but it is the end of a pipeline so the rhses are already evaled.
+                # It's not strictly correct to already change the symbol table
+                # here because the variables could be accessed during evaluation
+                # of the rhses but it is the end of a pipeline so the rhses are 
+                # already evaled.
                 self.symbol_tree.restore_snapshot(let.symbol_tree_snapshot)
-                self.environment.register(name)
+                # Little hack here: We add the PipelineLet names as
+                # ast.Identifiers to a list so we do not have to switch cases
+                # below.
                 lhs.append(ast.Identifier(let.tokens, name)) # ugly :( 'let' is required because we can not instantiate an ast node without inner elements, but that's not the only ugly thing here :)
         elif not isinstance(lhs, list):
             lhs = [lhs]
@@ -342,14 +357,17 @@ class Eval:
             # index access which is just handled differently here.
             if isinstance(l, ast.Identifier):
                 name = l.name
-                self.environment.set(name, value)
+                stack_index = self.symbol_tree.get_index(name)
+                self.locals[stack_index] = value
             elif isinstance(l, ast.IndexAccess):
                 index_access = l
+                # TODO It seems to me like multi-level index access write is broken?
                 if not isinstance(index_access.lhs, ast.Identifier):
                     raise(Exception("Can only index variables"))
                 name = index_access.lhs.name
-                index = self.evaluate(index_access.rhs)
-                self.environment.get(name)[index] = value
+                index_access_index = self.evaluate(index_access.rhs)
+                stack_index = self.symbol_tree.get_index(name)
+                self.locals[stack_index][index_access_index] = value
             else:
                 raise Exception("Can only assign to variable or indexed variable")
         if len(results)==1:
@@ -477,17 +495,6 @@ class Eval:
             window_title = current_dir
         sys.stdout.write("\x1b]2;bong "+window_title+"\x07") # Set the window title
 
-    def push_env(self, new_env):
-        current_env = self.environment
-        self.environment = new_env
-        return current_env
-
-    def push_new_env(self):
-        return self.push_env(Environment(self.environment))
-
-    def pop_env(self):
-        self.environment = self.environment.parent
-
     # Takes an Identifier or DotAccess which should describe a module
     # and returns the corresponding ast.TranslationUnit. The search
     # is started at self.current_unit's symbol table. For each resolution
@@ -523,6 +530,13 @@ def ensureValueList(value):
     if not isinstance(value, ValueList):
         return ValueList([value])
     return value
+
+# https://stackoverflow.com/a/4544699
+class StackList(list):
+    def __setitem__(self, index, value):
+        if index >= len(self):
+            self.extend(["UninitializedStackValue"]*(index + 1 - len(self)))
+        list.__setitem__(self, index, value)
 
 class ReturnValue:
     def __init__(self, value=None):
