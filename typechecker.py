@@ -148,12 +148,18 @@ class TypeChecker:
         if len(identifier.typename) > 1:
             modulename = identifier.typename[0]
             remaining_typename = identifier.typename[1:]
-            if (not modulename in unit.symbols_global
-                    or not isinstance(unit.symbols_global[modulename], bongtypes.Module)
-                    or not unit.symbols_global[modulename].path in self.modules):
-                raise TypecheckException(f"Module {modulename} can not be"
-                        " resolved.", node)
-            modulepath = unit.symbols_global[modulename].path
+            # The following checks are a little bit convoluted to satisfy mypy
+            if (not modulename in unit.symbols_global):
+                raise TypecheckException(f"Module {modulename} not found in"
+                        " symbol table.", node)
+            module_sym = unit.symbols_global[modulename]
+            if not isinstance(module_sym, bongtypes.Module):
+                raise TypecheckException(f"Symbol {modulename} is not a module,"
+                        f" instead it is {module_sym}.", node)
+            modulepath = module_sym.path
+            if not modulepath in self.modules:
+                raise TypecheckException(f"Module {module_sym} not found"
+                        " in module dictionary.", node)
             child_unit = self.modules[modulepath]
             remaining_typeidentifier = ast.BongtypeIdentifier(remaining_typename, 0)
             return self.resolve_type(remaining_typeidentifier, child_unit, node)
@@ -165,10 +171,11 @@ class TypeChecker:
                     " resolved.", node)
         # Already known types can be returned
         if not unit.symbols_global[typename].sametype(bongtypes.UnknownType()):
-            if not isinstance(unit.symbols_global[typename], bongtypes.Typedef):
+            typedef = unit.symbols_global[typename]
+            if not isinstance(typedef, bongtypes.Typedef):
                 raise TypecheckException(f"Type {typename} can not be"
                         " resolved.", node)
-            return unit.symbols_global[typename].value_type # unpack
+            return typedef.value_type # unpack
         # Everything else (structs) will be determined by determining the inner types
         if not typename in unit.struct_definitions:
             raise TypecheckException(f"Type {typename} can not be"
