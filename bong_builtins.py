@@ -1,4 +1,5 @@
 import bongtypes
+from bongvalues import ValueList
 
 # TODO Currently, the argument checker function raise BongtypeExceptions
 # which are converted to TypecheckerExceptions in typechecker.py. This
@@ -10,7 +11,7 @@ import bongtypes
 # bongtypes.py.
 
 def builtin_func_len(args):
-    return len(args[0])
+    return ValueList([len(args[0])])
 def check_len(argument_types : bongtypes.TypeList) -> bongtypes.TypeList:
     if len(argument_types)!=1:
         raise bongtypes.BongtypeException("Function 'len' expects one single argument.")
@@ -21,15 +22,15 @@ def check_len(argument_types : bongtypes.TypeList) -> bongtypes.TypeList:
 
 def builtin_func_get_argv(args):
     import sys
-    return sys.argv
+    return ValueList([sys.argv])
 def check_get_argv(argument_types : bongtypes.TypeList) -> bongtypes.TypeList:
     if len(argument_types)!=0:
         raise bongtypes.BongtypeException("Function 'get_argv' expects no arguments.")
     return bongtypes.TypeList([bongtypes.Array(bongtypes.String())])
 
 def builtin_func_append(args):
-    return args[0].append(args[1])
-def check_append(argument_types) -> bongtypes.TypeList:
+    return ValueList([args[0].append(args[1])])
+def check_append(argument_types: bongtypes.TypeList) -> bongtypes.TypeList:
     if len(argument_types)!=2:
         raise bongtypes.BongtypeException("Function 'append' expects exactly two arguments.")
     if not isinstance(argument_types[0], bongtypes.Array):

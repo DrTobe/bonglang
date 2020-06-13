@@ -2,9 +2,8 @@ from __future__ import annotations
 import ast
 import bong_builtins
 import bongtypes
-from flatlist import FlatList
+from bongvalues import ValueList, StructValue
 import collections
-from collections import UserDict
 from symbol_tree import SymbolTree, SymbolTreeNode
 
 # For subprocesses
@@ -55,124 +54,135 @@ class Eval:
     def restore_symbol_tree(self, node : SymbolTreeNode):
         self.symbol_tree.restore_snapshot(node)
 
-    def evaluate(self, node):
+    def evaluate(self, node: ast.BaseNode) -> ValueList:
         if isinstance(node, ast.Program):
             # Register all imported modules
-            for k, v in node.modules.items():
-                self.modules[k] = v
+            for k, m in node.modules.items():
+                self.modules[k] = m
             # Then evaluate the main module/file/input
             return self.evaluate(node.main_unit)
-        if isinstance(node, ast.TranslationUnit):
+        elif isinstance(node, ast.TranslationUnit):
             # First, retain/copy all function definitions. The other stuff seems
             # not to be required currently.
             # Here, we can not just set the current unit to node to retain
             # function definitions across evaluations in shell mode.
-            for k, v in node.function_definitions.items():
-                self.current_unit.unit.function_definitions[k] = v
+            for k, f in node.function_definitions.items():
+                self.current_unit.unit.function_definitions[k] = f
             # Set the current symbol table (which could be a reused one)
             self.current_unit.unit.symbols_global = node.symbols_global
             # Afterwards, run all non-function statements
-            res = None
+            res = ValueList([])
             for stmt in node.statements:
                 res = self.evaluate(stmt)
-                if isinstance(res, ReturnValue):
+                if res.returned():
                     # ast.Program is the top-level-node, return means exit then
                     # https://docs.python.org/3/library/sys.html#sys.exit says:
                     # int -> int, Null -> 0, other -> 1
                     # This behaviour seems reasonable here
-                    sys.exit(res.value)
+                    sys.exit(res[0] if len(res) > 0 else None)
             return res
-        if isinstance(node, ast.Block):
+        elif isinstance(node, ast.Block):
             symtree = self.symbol_tree.take_snapshot()
-            result = None
+            result = ValueList([])
             for stmt in node.stmts:
                 result = self.evaluate(stmt)
-                if isinstance(result, ReturnValue):
+                if result.returned():
                     break
             self.symbol_tree.restore_snapshot(symtree)
             return result
-        if isinstance(node, ast.Return):
+        elif isinstance(node, ast.Return):
             if node.result == None:
-                return ReturnValue()
+                return ValueList([], True)
             result = self.evaluate(node.result)
-            return ReturnValue(result)
-        if isinstance(node, ast.IfElseStatement):
+            result.unwind_return = True
+            return result
+        elif isinstance(node, ast.IfElseStatement):
             cond = node.cond
             if isTruthy(self.evaluate(cond)):
                 return self.evaluate(node.thn)
-            elif node.els != None:
+            elif isinstance(node.els, ast.BaseNode):
                 return self.evaluate(node.els)
-            return None
-        if isinstance(node, ast.WhileStatement):
-            ret = None
+            return ValueList([])
+        elif isinstance(node, ast.WhileStatement):
+            ret = ValueList([])
             while isTruthy(self.evaluate(node.cond)):
                 ret = self.evaluate(node.t)
-                if isinstance(ret, ReturnValue):
+                if ret.returned():
                     break
             return ret
-        if isinstance(node, ast.AssignOp):
-            return self.assign(node.lhs, node.rhs)
-        if isinstance(node, ast.BinOp):
+        elif isinstance(node, ast.AssignOp):
+            values = self.evaluate(node.rhs)
+            self.assign(node.lhs, values)
+            return values
+        elif isinstance(node, ast.BinOp):
             op = node.op
-            lhs = self.evaluate(node.lhs)
-            rhs = self.evaluate(node.rhs)
+            lhs = self.evaluate(node.lhs)[0]
+            rhs = self.evaluate(node.rhs)[0]
             if op == "+":
-                return lhs + rhs
-            if op == "-":
-                return lhs - rhs
-            if op == "*":
-                return lhs * rhs
-            if op == "/":
-                return lhs // rhs
-            if op == "%":
-                return lhs % rhs
-            if op == "^":
-                return lhs ** rhs
-            if op == "&&":
-                return lhs and rhs
-            if op == "||":
-                return lhs or rhs
-            if op == "==":
-                return lhs == rhs
-            if op == "!=":
-                return lhs != rhs
-            if op == "<":
-                return lhs < rhs
-            if op == ">":
-                return lhs > rhs
-            if op == "<=":
-                return lhs <= rhs
-            if op == ">=":
-                return lhs >= rhs
+                res = lhs + rhs
+            elif op == "-":
+                res = lhs - rhs
+            elif op == "*":
+                res = lhs * rhs
+            elif op == "/":
+                res = lhs // rhs
+            elif op == "%":
+                res = lhs % rhs
+            elif op == "^":
+                res = lhs ** rhs
+            elif op == "&&":
+                res = lhs and rhs
+            elif op == "||":
+                res = lhs or rhs
+            elif op == "==":
+                res = lhs == rhs
+            elif op == "!=":
+                res = lhs != rhs
+            elif op == "<":
+                res = lhs < rhs
+            elif op == ">":
+                res = lhs > rhs
+            elif op == "<=":
+                res = lhs <= rhs
+            elif op == ">=":
+                res = lhs >= rhs
             else:
                 raise Exception("unrecognised operator: " + str(node.op))
+            return ValueList([res])
         elif isinstance(node, ast.UnaryOp):
             op = node.op
             if op == "!":
-                return not self.evaluate(node.rhs)
-            if op == "-":
-                return -self.evaluate(node.rhs)
-            raise Exception("unrecognised unary operator: " + str(node.op))
+                val = not self.evaluate(node.rhs)[0]
+            elif op == "-":
+                val = -self.evaluate(node.rhs)[0]
+            else:
+                raise Exception("unrecognised unary operator: " + str(node.op))
+            return ValueList([val])
         elif isinstance(node, ast.Integer):
-            return node.value
+            return ValueList([node.value])
         elif isinstance(node, ast.Float):
-            return node.value
+            return ValueList([node.value])
         elif isinstance(node, ast.String):
-            return node.value
+            return ValueList([node.value])
         elif isinstance(node, ast.Bool):
-            return node.value
+            return ValueList([node.value])
         elif isinstance(node, ast.SysCall):
             return self.callprogram(node)
         elif isinstance(node, ast.Pipeline):
             if len(node.elements) < 2:
                 raise Exception("Pipelines should have more than one element. This seems to be a parser bug.")
             syscalls = []
+            # First pipeline element: First syscall or stdin
             if isinstance(node.elements[0], ast.SysCall):
                 syscalls.append(node.elements[0])
                 stdin = None
             else:
                 stdin = self.evaluate(node.elements[0])
-            syscalls.extend(node.elements[1:-1])
+            # Other pipeline elements until last: syscalls
+            for sc in node.elements[1:-1]:
+                assert(isinstance(sc, ast.SysCall))
+                syscalls.append(sc)
+            # Last pipeline element: Last syscall or stdout (+stderr)
             if isinstance(node.elements[-1], ast.SysCall):
                 syscalls.append(node.elements[-1])
                 assignto = None
@@ -180,9 +190,14 @@ class Eval:
                 assignto = node.elements[-1]
             # Special case: piping an ordinary expression into a variable
             if len(syscalls) == 0:
+                raise Exception("The special case, assigning regular values"
+                        " via pipelines, is not supported currently.")
+                """
                 if assignto == None:
                     raise Exception("Assertion error: Whenever a pipeline has no syscalls, it should consist of an expression that is assigned to something. No assignment was found here.")
-                return self.assign(assignto, stdin)
+                self.assign(assignto, stdin)
+                return stdin
+                """
             processes = []
             for syscall in syscalls[:-1]:
                 process = self.callprogram(syscall, stdin, True)
@@ -200,26 +215,42 @@ class Eval:
             outstreams = lastProcess.communicate()
             for process in processes:
                 process.wait()
-            if assignto != None:
-                self.assign(assignto, list(outstreams[:numOutputPipes]))
-            return lastProcess.returncode
+            # Assign stdout,stderr to variables
+            #results = ValueList(outstreams[:numOutputPipes])
+            results = ValueList([])
+            for o in outstreams[:numOutputPipes]:
+                results.append(o.decode('utf-8'))
+            if isinstance(assignto, ast.PipelineLet): # copied from ast.Let
+                if len(assignto.names) != len(results):
+                    raise Exception("number of expressions between rhs and lhs do not match")
+                self.symbol_tree.restore_snapshot(assignto.symbol_tree_snapshot)
+                for name, result in zip(assignto.names, results):
+                    index = self.symbol_tree.get_index(name)
+                    self.locals[index] = result
+            elif isinstance(assignto, ast.ExpressionList):
+                self.assign(assignto, results)
+            elif isinstance(assignto, ast.BaseNode):
+                self.assign(ast.ExpressionList(assignto.tokens, [assignto]), results)
+            # Return exitcode of subprocess
+            return ValueList([lastProcess.returncode])
         elif isinstance(node, ast.Identifier):
             if node.name in self.symbol_tree:
                 index = self.symbol_tree.get_index(node.name)
-                return self.locals[index]
+                return ValueList([self.locals[index]])
             elif node.name in self.current_unit.unit.symbols_global:
                 pass
                 # TODO Add global environment
             raise Exception(f"Unknown identifier '{node.name}' specified. TODO: global environment.")
         elif isinstance(node, ast.IndexAccess):
-            index = self.evaluate(node.rhs)
-            lhs = self.evaluate(node.lhs)
-            return lhs[index]
+            index = self.evaluate(node.rhs)[0]
+            lhs = self.evaluate(node.lhs)[0]
+            return ValueList([lhs[index]])
         elif isinstance(node, ast.DotAccess):
             # The following is only used for StructValue, modules are only used
             # for module- and function-access which is handled in FunctionCall below.
-            return self.evaluate(node.lhs)[node.rhs]
-        if isinstance(node, ast.FunctionCall):
+            val = self.evaluate(node.lhs)[0][node.rhs]
+            return ValueList([val])
+        elif isinstance(node, ast.FunctionCall):
             # node.name should either be an ast.Identifier, then we call a function
             # in the current module/unit, or an ast.DotAccess, then we call a function
             # in the specified module/unit.
@@ -237,9 +268,11 @@ class Eval:
             self.current_unit = TranslationUnitRef(unit, self.current_unit)
             try:
                 # Evaluate arguments (with old scope)
+                # TODO Here, we can maybe use args = self.evaluate(ExprList)
+                # instead of building a new array from scratch?
                 args = []
                 for a in node.args:
-                    args.append(self.evaluate(a))
+                    args.append(self.evaluate(a)[0])
                 # Call function, either builtin or defined
                 if isinstance(unit.symbols_global[funcname], bongtypes.Function):
                     # Bong function
@@ -257,8 +290,9 @@ class Eval:
                     finally:
                         self.symbol_tree.restore_snapshot(symbol_tree_snapshot)
                         self.locals = local_env_snapshot
-                    if isinstance(result, ReturnValue):
-                        return result.value
+                    if result.returned():
+                        result.unwind_return = False
+                        return result
                     return result
                 else:
                     # Builtin function
@@ -271,7 +305,7 @@ class Eval:
         elif isinstance(node, ast.Let):
             # First, evaluate all rhses (those are possibly encapsulated in an
             # ExpressionList, so no need to iterate here
-            results = ensureValueList(self.evaluate(node.expr))
+            results = self.evaluate(node.expr)
             # Then, assign results. This order of execution additionally prevents
             # the rhs of a let statement to use the variables declared on the
             # left side.
@@ -284,95 +318,47 @@ class Eval:
         elif isinstance(node, ast.Array):
             elements = []
             for e in node.elements:
-                elements.append(self.evaluate(e))
-            return elements
+                elements.append(self.evaluate(e)[0])
+            return ValueList([elements])
         elif isinstance(node, ast.StructValue):
+            assert(isinstance(node.name, ast.Identifier)
+                    or isinstance(node.name, ast.DotAccess))
             structval = StructValue(node.name)
             for name, expr in node.fields.items():
-                structval[name] = self.evaluate(expr)
-            return structval
+                structval[name] = self.evaluate(expr)[0]
+            return ValueList([structval])
         elif isinstance(node, ast.ExpressionList):
             results = ValueList([])
             for exp in node.elements:
+                # ValueList is a FlatList and an append to FlatList is
+                # automatically flattened. Not indexing into the result
+                # of evaluate() here is crucial because the result could be
+                # an empty ValueList (e.g. function calls)
                 results.append(self.evaluate(exp))
-            if len(results)==1: # TODO Maybe switch to always return ValueLists like with TypeLists in typechecker?
-                return results[0]
             return results
         else:
             raise Exception("unknown ast node")
+        return ValueList([]) # Satisfy mypy
 
-    def assign(self, lhs, rhs):
-        if isinstance(rhs, ast.ExpressionList):
-            rhs = rhs.elements
-        elif not isinstance(rhs, list):
-            rhs = [rhs]
-        if isinstance(lhs, ast.ExpressionList):
-            lhs = lhs.elements
-        elif isinstance(lhs, ast.PipelineLet):
-            let = lhs
-            lhs = []
-            for name in let.names:
-                # It's not strictly correct to already change the symbol table
-                # here because the variables could be accessed during evaluation
-                # of the rhses but it is the end of a pipeline so the rhses are 
-                # already evaled.
-                self.symbol_tree.restore_snapshot(let.symbol_tree_snapshot)
-                # Little hack here: We add the PipelineLet names as
-                # ast.Identifiers to a list so we do not have to switch cases
-                # below.
-                lhs.append(ast.Identifier(let.tokens, name)) # ugly :( 'let' is required because we can not instantiate an ast node without inner elements, but that's not the only ugly thing here :)
-        elif not isinstance(lhs, list):
-            lhs = [lhs]
-        # First, evaluate all rhses, then assign to all lhses
-        results = []
-        for r in rhs:
-            # In typical assignments, the rhs is evaluated first (this distinction
-            # is especially necessary if lhs and rhs contain expressions with
-            # possible side-effects and the lhs contains an IndexAccess)
-            #
-            # 1. rhs evaluation: The rhs can be an expression or it can be the
-            # output value of a pipeline.
-            # Therefore, we need to check vs the list of python types that an
-            # Eval.evaluate() call could return.
-            # TODO I feel that there could be a nicer way to do this, but
-            # I don't see it yet.
-            if (isinstance(r, bytes) or
-                    isinstance(r, bool) or
-                    isinstance(r, int) or
-                    isinstance(r, str)):
-                # TODO The following distinction is just made so that we can work
-                # nicely with syscall output. Done properly, the value would just
-                # by a bytestream that has to be decoded by the user.
-                if isinstance(r, bytes):
-                    value = r.decode("utf-8")
-                else:
-                    value = r
-            else:
-                value = self.evaluate(r)
-            results.append(value)
-        if len(results)!=len(lhs):
+    def assign(self, lhs: ast.ExpressionList, rhs: ValueList):
+        if len(rhs)!=len(lhs):
             raise Exception("number of elements on lhs and rhs does not match")
-        for l, value in zip(lhs, results):
-            # 2. lhs evaluation: The lhs can be a variable assignment or an
-            # index access which is just handled differently here.
+        for l, value in zip(lhs, rhs):
+            # lhs evaluation: The lhs can be a variable assignment, an
+            # index access, a DotAccess
             if isinstance(l, ast.Identifier):
                 name = l.name
                 stack_index = self.symbol_tree.get_index(name)
                 self.locals[stack_index] = value
             elif isinstance(l, ast.IndexAccess):
                 index_access = l
-                # TODO It seems to me like multi-level index access write is broken?
-                if not isinstance(index_access.lhs, ast.Identifier):
-                    raise(Exception("Can only index variables"))
-                name = index_access.lhs.name
-                index_access_index = self.evaluate(index_access.rhs)
-                stack_index = self.symbol_tree.get_index(name)
-                self.locals[stack_index][index_access_index] = value
+                index_access_index = self.evaluate(index_access.rhs)[0]
+                l = self.evaluate(index_access.lhs)[0]
+                l[index_access_index] = value
+            elif isinstance(l, ast.DotAccess):
+                pass # TODO
             else:
                 raise Exception("Can only assign to variable or indexed variable")
-        if len(results)==1:
-            return results[0]
-        return results
 
     def numInputsExpected(self, assignto):
         if isinstance(assignto, ast.PipelineLet):
@@ -516,15 +502,9 @@ class Eval:
         return self.modules[module.path]
 
 def isTruthy(value):
-    if value == None or value == False:
-        return False
-    return True
-
-class ValueList(FlatList):
-    def __init__(self, elements):
-        super().__init__(elements)
-    def __str__(self):
-        return ", ".join(map(str,self.elements))
+    if value[0] == True:
+        return True
+    return False
 
 def ensureValueList(value):
     if not isinstance(value, ValueList):
@@ -537,39 +517,6 @@ class StackList(list):
         if index >= len(self):
             self.extend(["UninitializedStackValue"]*(index + 1 - len(self)))
         list.__setitem__(self, index, value)
-
-class ReturnValue:
-    def __init__(self, value=None):
-        self.value = value
-    def __eq__(self, other):
-        if other == None: # Comparing to None should be possible without error message
-            return False
-        if not isinstance(other, ReturnValue):
-            print("dont compare this")
-            return False
-        return self.value == other.value
-    def __str__(self):
-        result = "ReturnValue"
-        if self.value != None:
-            result += " "
-            result += str(self.value)
-        return result
-
-class StructValue(UserDict):
-    def __init__(self, name : typing.Union[ast.Identifier, ast.DotAccess]):
-        super().__init__()
-        if isinstance(name, ast.Identifier):
-            self.name = name.name
-        elif isinstance(name, ast.DotAccess):
-            self.name = name.rhs
-        else:
-            raise Exception("StructValues should be initialized with ast.Identifier"
-                    " or ast.DotAccess!")
-    def __str__(self):
-        fields = []
-        for name, value in self.data.items():
-            fields.append(name + " : " + str(value))
-        return str(self.name) + " { " + ", ".join(sorted(fields)) + " }"
 
 class TranslationUnitRef:
     def __init__(self, unit : ast.TranslationUnit, parent : typing.Optional[TranslationUnitRef] = None):

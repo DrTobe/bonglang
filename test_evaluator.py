@@ -101,7 +101,7 @@ class TestEvaluator(unittest.TestCase):
         self.single_print_test("print (27%5)^2", 4)
     def single_print_test(self, code, expected_result):
         test_eval(code, None, self)
-        self.assertEqual(self.result, expected_result, "Expected to print {} but got {}".format(expected_result, self.result))
+        self.assertEqual(self.result, str(expected_result), "Expected to print {} but got {}".format(expected_result, self.result))
 
 
     def test_expression_statements(self):
@@ -169,13 +169,13 @@ class TestEvaluator(unittest.TestCase):
         # an additional test_typechecker.py
         self.typecheck(code)
         evaluated = evaluate(code, self.printer)
-        if type(expected) == str:
-            evaluated = str(evaluated)
+        evaluated = str(evaluated)
+        expected = str(expected) if expected!=None else ""
         self.assertEqual(evaluated, expected, f"Expected {expected} but"
             f" got {evaluated}")
 
     def printer(self, string):
-        self.result = string
+        self.result = str(string) # type(string) == ValueList
 
 # Just for backwards compatibility
 def test_eval(code, expected, test_class):

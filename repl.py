@@ -186,7 +186,7 @@ def main():
             if not program:
                 continue
             evaluated = evaluator.evaluate(program)
-            if evaluated != None:
+            if len(evaluated) > 0:
                 if config_print_results:
                     print(str(evaluated))
             symbol_table_snapshot = p.take_snapshot()
