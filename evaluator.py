@@ -351,12 +351,12 @@ class Eval:
                 stack_index = self.symbol_tree.get_index(name)
                 self.locals[stack_index] = value
             elif isinstance(l, ast.IndexAccess):
-                index_access = l
-                index_access_index = self.evaluate(index_access.rhs)[0]
-                l = self.evaluate(index_access.lhs)[0]
-                l[index_access_index] = value
+                index_access_index = self.evaluate(l.rhs)[0]
+                array = self.evaluate(l.lhs)[0]
+                array[index_access_index] = value
             elif isinstance(l, ast.DotAccess):
-                pass # TODO
+                struct = self.evaluate(l.lhs)[0]
+                struct[l.rhs] = value
             else:
                 raise Exception("Can only assign to variable or indexed variable")
 
