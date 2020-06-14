@@ -217,7 +217,11 @@ class Parser:
                 raise ParseException(f"Field '{field_name}' found multiple times"
                         " in struct '{name}'.")
             fields[field_name] = field_type
+        # If } occurs on its own line, an implicit semicolon is inserted
+        # after the fields
+        self.match(token.SEMICOLON)
         # }
+        self.check_eof("Expected } to end the field list.")
         if not toks.add(self.match(token.RBRACE)):
             raise ParseException("Expected } to end the field list.")
         # If everything went fine, register the struct name
@@ -541,6 +545,9 @@ class Parser:
                 if not toks.add(self.match(token.LBRACE)):
                     raise Exception("Missing { for struct value.")
                 fields = self.parse_struct_fields()
+                # implicit semicolon
+                self.match(token.SEMICOLON)
+                self.check_eof("Missing } on struct value.2")
                 if not toks.add(self.match(token.RBRACE)):
                     raise ParseException("Missing } on struct value.")
                 # The statement/access is finished after instantiating a struct
