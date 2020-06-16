@@ -5,6 +5,7 @@ import bongtypes
 from bongvalues import ValueList, StructValue
 import collections
 from symbol_tree import SymbolTree, SymbolTreeNode
+import copy
 
 # For subprocesses
 import os
@@ -276,6 +277,8 @@ class Eval:
                 args = []
                 for a in node.args:
                     args.append(self.evaluate(a)[0])
+                # Call by value!
+                args = copy.deepcopy(args)
                 # Call function, either builtin or defined
                 if isinstance(unit.symbols_global[funcname], bongtypes.Function):
                     # Bong function

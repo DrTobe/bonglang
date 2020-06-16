@@ -29,7 +29,10 @@ def check_get_argv(argument_types : bongtypes.TypeList) -> bongtypes.TypeList:
     return bongtypes.TypeList([bongtypes.Array(bongtypes.String())])
 
 def builtin_func_append(args):
-    return ValueList([args[0].append(args[1])])
+    array = args[0]
+    element = args[1]
+    array.append(element)
+    return ValueList([array])
 def check_append(argument_types: bongtypes.TypeList) -> bongtypes.TypeList:
     if len(argument_types)!=2:
         raise bongtypes.BongtypeException("Function 'append' expects exactly two arguments.")
