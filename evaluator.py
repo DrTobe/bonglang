@@ -125,7 +125,10 @@ class Eval:
             elif op == "*":
                 res = lhs * rhs
             elif op == "/":
-                res = lhs // rhs
+                if isinstance(lhs, int):
+                    res = lhs // rhs
+                else:
+                    res = lhs / rhs
             elif op == "%":
                 res = lhs % rhs
             elif op == "^":
